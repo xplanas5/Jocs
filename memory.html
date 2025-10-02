@@ -2,7 +2,7 @@
 <html lang="ca">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>Memory de Sumes</title>
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
 
@@ -20,16 +20,25 @@
     .app-container{ flex:1 0 auto; min-height:100vh; width:100%; }
     @supports (height: 100dvh){ body,#root,.app-container{ min-height:100dvh; } }
 
-    /* Board: columns injectades des de JS per forçar horitzontalitat */
+    /* ===== Tauler: orientació horitzontal per defecte (poques files, moltes columnes) */
     .board{
       display:grid;
       gap:.75rem;
-      margin-inline:auto;   /* centrat */
+      margin-inline:auto;        /* centrat */
       align-content:start;
-      width: min(95vw, 1400px);
+      width:min(95vw, 1400px);   /* espai respirable a banda i banda */
     }
 
-    /* Flip 3D i feedback */
+    /* Les columnes les fixa el JS en desktop/tablet.
+       En mòbil forcem auto-fit per evitar scroll horitzontal. */
+    @media (max-width: 640px){
+      .board{
+        grid-template-columns: repeat(auto-fit, minmax(90px, 1fr)) !important;
+        width: min(96vw, 600px);
+      }
+    }
+
+    /* ===== Flip 3D i feedback */
     .card-3d{ perspective:1000px; }
     .card-inner{
       position:relative; width:100%; height:100%;
@@ -50,33 +59,33 @@
       50%{ transform:translateX(6px) } 75%{ transform:translateX(-4px) }
       100%{ transform:translateX(0) }
     }
+
+    /* Safe-area padding (iPhone) per evitar anar enganxat a la vora */
+    .px-safe{
+      padding-left: max(1rem, env(safe-area-inset-left));
+      padding-right: max(1rem, env(safe-area-inset-right));
+    }
   </style>
 </head>
 <body class="transition-colors duration-300 bg-gradient-to-br from-purple-100 via-pink-100 to-blue-100 text-slate-800 dark:from-slate-950 dark:via-slate-900 dark:to-slate-900 dark:text-slate-100">
   <div id="root" class="app-container flex flex-col">
-    <!-- Header -->
+    <!-- Header (sense botó de mode fosc) -->
     <header class="w-full sticky top-0 z-10 backdrop-blur supports-[backdrop-filter]:bg-white/50 dark:supports-[backdrop-filter]:bg-slate-900/40 bg-white/70 dark:bg-slate-900/60 border-b border-white/30 dark:border-slate-700/50">
-      <div class="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
+      <div class="max-w-7xl mx-auto px-safe py-4 flex items-center justify-between">
         <h1 class="text-3xl md:text-4xl font-black bg-gradient-to-r from-purple-600 via-pink-600 to-blue-600 bg-clip-text text-transparent">
           🧠➕ Memory de Sumes
         </h1>
-        <button id="toggleDark"
-          class="rounded-full px-4 py-2 text-sm font-semibold shadow-lg shadow-black/5 border border-black/5 dark:border-white/10
-                 bg-slate-900 text-amber-300 dark:bg-amber-300 dark:text-slate-900 hover:scale-105 transition">
-          <span class="inline dark:hidden">🌙 Mode fosc</span>
-          <span class="hidden dark:inline">☀️ Mode clar</span>
-        </button>
       </div>
     </header>
 
     <!-- Controls -->
-    <div class="max-w-7xl mx-auto w-full px-4 py-6">
+    <div class="max-w-7xl mx-auto w-full px-safe py-6">
       <div class="grid gap-4 md:grid-cols-[1fr_auto_auto_auto] items-end">
         <div class="rounded-2xl p-4 bg-white/70 dark:bg-slate-800/60 border border-black/5 dark:border-white/10 shadow-sm">
           <label class="block text-xs uppercase tracking-wide opacity-70 mb-1">Descripció</label>
           <p class="text-sm opacity-90">
-            Troba parelles <strong>Operació ↔ Resultat</strong>. Les cartes s’organitzen en
-            <strong>poques files i moltes columnes</strong> (més horitzontal). Barreja real: no quedaran totes les parelles juntes.
+            Troba parelles <strong>Operació ↔ Resultat</strong>. Orientació <strong>més horitzontal</strong>.
+            Barreja real: operacions i resultats es dispersen (no queden totes de costat).
           </p>
         </div>
 
@@ -96,7 +105,7 @@
           <label for="maxRes" class="block text-xs uppercase tracking-wide opacity-70 mb-1">Resultat màxim</label>
           <input id="maxRes" type="number" min="4" value="20"
                  class="w-36 rounded-xl px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700" />
-          <p class="text-xs mt-1 opacity-70">Ha de ser ≥ parelles + 1 per assegurar resultats únics.</p>
+          <p class="text-xs mt-1 opacity-70">Recomanat ≥ nombre de parelles + 1 (per resultats únics).</p>
         </div>
 
         <div class="flex gap-2">
@@ -134,23 +143,19 @@
     </div>
 
     <!-- Footer -->
-    <footer class="mt-auto text-center p-4 text-xs text-slate-600 dark:text-slate-400">
+    <footer class="mt-auto text-center p-4 text-xs text-slate-600 dark:text-slate-400 px-safe">
       <p>Joc creat per a GitHub Pages · Sense dependències. Estil inspirat en “Tutifruti”.</p>
       <p>Llicència: CC BY-NC-SA 4.0</p>
     </footer>
   </div>
 
   <script>
-    // ===== Dark mode (classe 'dark' a <html>, preferència guardada)
+    // ===== Dark mode: manté funcionalitat sense botó
     (function initTheme(){
       const rootEl = document.documentElement;
-      const saved = localStorage.getItem('theme');
+      const saved = localStorage.getItem('theme'); // 'dark' | 'light' (si ja existia de versions anteriors)
       const preferDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
       if ((saved === 'dark') || (!saved && preferDark)) rootEl.classList.add('dark');
-      document.getElementById('toggleDark').addEventListener('click', () => {
-        rootEl.classList.toggle('dark');
-        localStorage.setItem('theme', rootEl.classList.contains('dark') ? 'dark' : 'light');
-      });
     })();
 
     // ===== Elements UI
@@ -178,8 +183,7 @@
       playing: false,
       lock: false,
       pairsNeeded: 0,
-      cols: 0,   // columnes actuals del grid
-      rows: 0
+      cols: 0, rows: 0
     };
 
     // ===== Utils
@@ -199,13 +203,11 @@
     function shuffle(a){ for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } return a; }
     const randInt = (min,max)=> Math.floor(Math.random()*(max-min+1))+min;
 
-    // Decideix files per a una disposició més horitzontal
     function pickRows(total){
       if (total <= 12) return 2;  // 10,12 → 2 files
       return 3;                   // 16,18,20 → 3 files
     }
 
-    // Genera parelles (sums únics) i crea el deck barrejant
     function makePairs(pairCount, maxR){
       const possibleSums = [];
       for(let s=2; s<=maxR; s++) possibleSums.push(s);
@@ -226,12 +228,9 @@
       return pairs;
     }
 
-    // Calcula quantes parelles han quedat adjacents horitzontalment (mateixa fila, columna contigua)
     function countAdjacentPairs(deck, cols){
-      // posició de cada id al grid (row-major)
       const pos = new Map();
       deck.forEach((c, idx) => pos.set(c.id, { r: Math.floor(idx/cols), c: idx % cols, key: c.key, type: c.type }));
-      // recorre per claus i mira on són els dos elements
       const seen = new Set();
       let adj = 0;
       for (const {key} of deck){
@@ -247,63 +246,58 @@
       return adj;
     }
 
-    // Construeix el deck final barrejant i assegurant que NO quedin TOTES les parelles de costat
     function buildDeck(total, maxR){
       const pairs = Math.floor(total/2);
       const rows = pickRows(total);
       const cols = Math.ceil(total / rows);
-
-      // Genera totes les cartes
       const pairList = makePairs(pairs, maxR);
 
-      // Barregem cartes de totes les parelles (operacions i resultats junts)
       let deck;
       do {
-        // flatten i barreja
         deck = shuffle(pairList.flat());
-        // si falta alguna carta (no hauria), reaplica
         if (deck.length !== total) deck = deck.slice(0, total);
-        // comprova adjacència horitzontal
         const adj = countAdjacentPairs(deck, cols);
-        // si ADJ == totes les parelles, reintenta (evitem "totes de costat")
-        if (adj === pairs) continue;
+        if (adj === pairs) continue; // evita que TOTES les parelles quedin juntes
         break;
       } while(true);
 
       return { deck, rows, cols };
     }
 
-    // Render
     function render(){
       const g = els.grid;
       g.innerHTML = '';
-      g.style.gridTemplateColumns = `repeat(${state.cols}, minmax(120px, 1fr))`;
+
+      // Desktop/Tablet: forcem columnes; en mòbil un @media ho ignora (auto-fit)
+      if (window.innerWidth > 640){
+        g.style.gridTemplateColumns = `repeat(${state.cols}, minmax(120px, 1fr))`;
+      } else {
+        g.style.gridTemplateColumns = ''; // deixa l'auto-fit del CSS
+      }
 
       state.deck.forEach(card=>{
         const btn = document.createElement('button');
         btn.type = 'button';
         btn.dataset.id = card.id;
         btn.className =
-          'card-3d relative h-[120px] sm:h-[130px] rounded-2xl focus:outline-none focus:ring-2 ' +
+          'card-3d relative h-[110px] sm:h-[130px] rounded-2xl focus:outline-none focus:ring-2 ' +
           'focus:ring-emerald-400/70 transition-transform';
 
         const inner = document.createElement('div');
         inner.className = 'card-inner';
 
-        // Front (contingut, ocult d'entrada)
-        const front = document.createElement('div');
+        const front = document.createElement('div'); // contingut (ocult al principi)
         front.className =
           'card-face card-front rounded-2xl grid place-items-center ' +
           'bg-gradient-to-br from-emerald-400 to-emerald-600 text-white ' +
-          'text-2xl sm:text-3xl font-black border border-emerald-500/40 shadow-lg';
+          'text-xl sm:text-2xl font-black border border-emerald-500/40 shadow-lg';
         front.textContent = card.label;
 
-        // Back ("?" visible d'entrada)
-        const back = document.createElement('div');
+        const back = document.createElement('div');  // "?" visible al principi
         back.className =
           'card-face card-back rounded-2xl grid place-items-center ' +
           'bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 ' +
-          'text-slate-600 dark:text-slate-200 text-4xl sm:text-5xl select-none';
+          'text-slate-600 dark:text-slate-200 text-3xl sm:text-4xl select-none';
         back.textContent = '?';
 
         inner.appendChild(front);
@@ -418,6 +412,12 @@
 
     // partida inicial
     newGame();
+
+    // Re-render en canvis d’orientació/dispositiu per assegurar el layout òptim
+    window.addEventListener('resize', () => {
+      if (!state.deck.length) return;
+      render();
+    });
   </script>
 </body>
 </html>
