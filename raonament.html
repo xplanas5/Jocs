@@ -1,1 +1,531 @@
+<!DOCTYPE html>
+<html lang="ca">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Raonament Espacial — Minijocs</title>
+  <meta name="description" content="Pack de minijocs de raonament espacial per a 11 anys (Rotation Rush, Symmetry Painter, Map Hunt).">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🧩</text></svg>">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    /* Ajustos visuals */
+    canvas { image-rendering: pixelated; }
+    .btn { @apply px-4 py-2 rounded-xl shadow text-sm font-medium border; }
+    .btn-primary { @apply bg-sky-600 text-white border-sky-700 hover:bg-sky-700; }
+    .btn-ghost { @apply bg-white hover:bg-slate-100 border-slate-300; }
+    .card { @apply rounded-2xl shadow-lg border bg-white; }
+    .badge { @apply text-[10px] px-2 py-0.5 rounded-full bg-slate-100 border; }
+    .kbd { @apply inline-flex items-center px-1.5 py-0.5 rounded border text-xs bg-slate-50; }
+    /* Grid de Symmetry Painter */
+    .cell { width: 24px; height: 24px; border: 1px solid #e5e7eb; box-sizing:border-box; }
+    .cell.on { background:#111827; }
+    .cell.hint { outline: 2px dashed #94a3b8; }
+  </style>
+</head>
+<body class="min-h-screen bg-gradient-to-b from-slate-50 to-slate-100 text-slate-800">
+  <header class="sticky top-0 z-10 backdrop-blur bg-white/70 border-b">
+    <div class="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <span class="text-2xl">🧩</span>
+        <h1 class="text-xl font-semibold">Raonament Espacial — Minijocs</h1>
+      </div>
+      <nav class="flex items-center gap-2">
+        <button id="btnHome" class="btn btn-ghost">Inici</button>
+        <button id="btnReset" class="btn btn-ghost">Reinicia</button>
+      </nav>
+    </div>
+  </header>
+
+  <main class="max-w-5xl mx-auto px-4 py-6">
+    <!-- HUB -->
+    <section id="hub" class="grid md:grid-cols-3 gap-5">
+      <article class="card p-5 flex flex-col gap-3">
+        <div class="flex items-center justify-between">
+          <h2 class="text-lg font-semibold">Rotation Rush</h2>
+          <span class="badge">Rotació mental</span>
+        </div>
+        <p class="text-sm text-slate-600">Identifica la rotació correcta d’una figura. 10 rondes ràpides.</p>
+        <button class="btn btn-primary self-start" data-start="rotation_rush">Començar</button>
+      </article>
+
+      <article class="card p-5 flex flex-col gap-3">
+        <div class="flex items-center justify-between">
+          <h2 class="text-lg font-semibold">Symmetry Painter</h2>
+          <span class="badge">Simetria axial</span>
+        </div>
+        <p class="text-sm text-slate-600">Pinta la meitat que falta i respecta l’eix de simetria.</p>
+        <button class="btn btn-primary self-start" data-start="symmetry_painter">Començar</button>
+      </article>
+
+      <article class="card p-5 flex flex-col gap-3">
+        <div class="flex items-center justify-between">
+          <h2 class="text-lg font-semibold">Map Hunt</h2>
+          <span class="badge">Orientació i coordenades</span>
+        </div>
+        <p class="text-sm text-slate-600">Segueix pistes N/E/S/O en una graella per trobar objectes.</p>
+        <div class="text-xs text-slate-500">Controls: <span class="kbd">↑↓←→</span> moure · <span class="kbd">R</span> reinicia nivell</div>
+        <button class="btn btn-primary self-start" data-start="map_hunt">Començar</button>
+      </article>
+    </section>
+
+    <!-- ESCENARI DE JOC -->
+    <section id="scene" class="hidden">
+      <div class="card p-4">
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <div class="flex items-center gap-2">
+            <span class="text-sm font-medium">Joc:</span>
+            <span id="uiGameName" class="text-sm"></span>
+            <span class="badge" id="uiMode">Aprenentatge</span>
+          </div>
+          <div class="flex items-center gap-4">
+            <div class="text-sm">Punts: <span id="uiScore" class="font-semibold">0</span></div>
+            <div class="text-sm">Temps: <span id="uiTime" class="font-semibold">—</span></div>
+          </div>
+        </div>
+
+        <!-- Lienços per jocs -->
+        <div id="gameRoot" class="mt-4"></div>
+
+        <div id="uiActions" class="mt-4 flex flex-wrap gap-2">
+          <button id="btnBack" class="btn btn-ghost">Torna</button>
+          <button id="btnNext" class="btn btn-primary">Següent</button>
+        </div>
+      </div>
+    </section>
+
+    <footer class="mt-8 text-center text-xs text-slate-500">
+      Fet amb 💙 per entrenar el raonament espacial (11 anys). Codi lliure — penja-ho a GitHub Pages.
+    </footer>
+  </main>
+
+  <script>
+  /**********************
+   * ENGINE COMÚ
+   **********************/
+  const el = sel => document.querySelector(sel);
+  const $hub = el('#hub');
+  const $scene = el('#scene');
+  const $root = el('#gameRoot');
+  const $uiName = el('#uiGameName');
+  const $uiScore = el('#uiScore');
+  const $uiTime = el('#uiTime');
+  const $uiMode = el('#uiMode');
+
+  let state = {
+    screen: 'hub',
+    score: 0,
+    timeLeft: null,
+    timerId: null,
+    game: null,     // {id, name, init(), destroy(), next(), reducer(), getStatus()}
+    level: null,    // configuració del nivell actual
+    status: 'ready' // ready|running|win|lose
+  };
+
+  function showHub(){
+    clearTimer();
+    state.screen = 'hub';
+    $scene.classList.add('hidden');
+    $hub.classList.remove('hidden');
+  }
+  function showScene(){
+    state.screen = 'scene';
+    $hub.classList.add('hidden');
+    $scene.classList.remove('hidden');
+  }
+  function setScore(v){ state.score=v; $uiScore.textContent = v; }
+  function setTime(v){ state.timeLeft=v; $uiTime.textContent = (v==null?'—':v); }
+  function startTimer(){
+    clearTimer();
+    if(state.timeLeft==null) return;
+    state.timerId = setInterval(()=>{
+      state.timeLeft--;
+      $uiTime.textContent = state.timeLeft;
+      if(state.timeLeft<=0){ endGame('lose'); }
+    },1000);
+  }
+  function clearTimer(){ if(state.timerId){ clearInterval(state.timerId); state.timerId=null; } }
+
+  function startGame(gameId){
+    const G = GAMES[gameId];
+    state.game = { id:gameId, name:G.name, ...G };
+    $uiName.textContent = G.name;
+    $uiMode.textContent = 'Aprenentatge';
+    setScore(0);
+    setTime(G.timeLimit ?? null);
+    $root.innerHTML = '';
+    showScene();
+    G.init($root, (deltaScore)=> {
+      setScore(Math.max(0, state.score + deltaScore));
+    });
+    if(G.timeLimit){ startTimer(); }
+    state.status='running';
+  }
+  function endGame(kind){
+    state.status = kind; // 'win'/'lose'
+    clearTimer();
+    // Diàleg simple
+    const msg = kind==='win' ? `🎉 Ben fet! Punts: ${state.score}` : `⏱️ Temps esgotat. Punts: ${state.score}`;
+    alert(msg);
+  }
+
+  // Botons globals
+  el('#btnHome').onclick = showHub;
+  el('#btnReset').onclick = ()=> {
+    if(state.game && state.game.reset){ state.game.reset(); setScore(0); setTime(state.game.timeLimit ?? null); startTimer(); }
+  };
+  el('#btnBack').onclick = showHub;
+  el('#btnNext').onclick = ()=> { if(state.game && state.game.next) state.game.next(); };
+
+  // Arrencar jocs des del HUB
+  document.querySelectorAll('[data-start]').forEach(b=>{
+    b.addEventListener('click', ()=> startGame(b.dataset.start));
+  });
+
+  /**********************
+   * NIVELLS & ASSETS
+   **********************/
+  const LEVELS = {
+    rotation_rush: {
+      rounds: 10,
+      angles: [90,180,270],
+      allowReflections: true,
+      shapeset: [
+        // polígons simples (en px)
+        [[0,0],[60,0],[60,60],[0,60]], // quadrat
+        [[0,0],[80,0],[40,60]],        // triangle
+        [[0,0],[70,0],[90,40],[20,60]],// quadrilàter irregular
+        [[0,0],[90,0],[90,30],[0,60]], // trapezi
+        [[0,0],[60,0],[80,30],[40,60],[0,40]] // pentàgon irregular
+      ]
+    },
+    symmetry_painter: [
+      // cada nivell defineix graella i eix vertical al centre
+      {rows:12, cols:16, symmetry:'axial-y', target: (r,c)=> (r>2 && r<9 && c<4 && (r+c)%2===0)},
+      {rows:14, cols:20, symmetry:'axial-y', target: (r,c)=> ( (r>3 && r<10 && c<6) && ((r%3)===0 || (c%2)===0) )},
+      {rows:16, cols:22, symmetry:'axial-y', target: (r,c)=> ( (r>4 && r<12 && c<7) && ((r+c)%3===0) )}
+    ],
+    map_hunt: [
+      {rows:8, cols:8, start:[0,0], heading:'E', targets:3, hints:['E2','S3','E1','N1','E1']},
+      {rows:10, cols:10, start:[2,2], heading:'N', targets:4, hints:['N2','E3','S1','E2','N3','W1']},
+      {rows:12, cols:12, start:[5,1], heading:'E', targets:5, hints:['E4','N2','E1','S3','W2','N1','E3']}
+    ]
+  };
+
+  /**********************
+   * JOC 1: Rotation Rush
+   **********************/
+  const RotationRush = {
+    name: 'Rotation Rush',
+    timeLimit: 20, // per ronda (es reinicia)
+    container: null,
+    canvasBase: null,
+    choicesWrap: null,
+    round: 0,
+    correctIndex: 0,
+    basePoly: null,
+
+    init(root, onScore){
+      this.onScore = onScore;
+      this.round = 0;
+      this.container = document.createElement('div');
+      this.container.className = 'grid md:grid-cols-2 gap-4';
+      this.container.innerHTML = `
+        <div class="flex flex-col items-center gap-2">
+          <canvas id="rr-base" width="260" height="260" class="border rounded-xl bg-white"></canvas>
+          <div class="text-sm text-slate-500">Tria la rotació correcta</div>
+        </div>
+        <div>
+          <div id="rr-choices" class="grid grid-cols-2 gap-3"></div>
+        </div>`;
+      root.appendChild(this.container);
+      this.canvasBase = this.container.querySelector('#rr-base').getContext('2d');
+      this.choicesWrap = this.container.querySelector('#rr-choices');
+      this.next();
+    },
+    destroy(){ this.container?.remove(); },
+    reset(){ this.round=0; this.next(); },
+    next(){
+      // reinicia temps per ronda
+      setTime(RotationRush.timeLimit);
+      startTimer();
+
+      this.round++;
+      if(this.round > LEVELS.rotation_rush.rounds){
+        endGame('win'); return;
+      }
+      // nova base
+      const polys = LEVELS.rotation_rush.shapeset;
+      this.basePoly = polys[Math.floor(Math.random()*polys.length)];
+      // pinta base
+      const ctx = this.canvasBase;
+      ctx.clearRect(0,0,260,260);
+      drawPoly(ctx, this.basePoly, {x:130,y:130,rot:0,mirror:false,stroke:'#0f172a'});
+
+      // opcions
+      this.choicesWrap.innerHTML='';
+      this.correctIndex = Math.floor(Math.random()*4);
+      for(let i=0;i<4;i++){
+        const cv = document.createElement('canvas');
+        cv.width=140; cv.height=140;
+        cv.className='border rounded-xl bg-white cursor-pointer';
+        const c = cv.getContext('2d');
+        const isCorrect = i===this.correctIndex;
+        const angle = isCorrect ? 0 : sample(LEVELS.rotation_rush.angles);
+        const mirror = !isCorrect && LEVELS.rotation_rush.allowReflections && Math.random()<0.33;
+        drawPoly(c, this.basePoly, {x:70,y:70,rot:angle,mirror,stroke:'#0f172a'});
+        cv.onclick = ()=> this.pick(isCorrect);
+        this.choicesWrap.appendChild(cv);
+      }
+    },
+    pick(ok){
+      if(ok){ this.onScore(10); pulse(this.container); this.next(); }
+      else { this.onScore(-2); shake(this.container); }
+    }
+  };
+
+  function drawPoly(ctx, poly, {x=0,y=0,rot=0,mirror=false,stroke='#000'}={}){
+    ctx.save();
+    ctx.translate(x,y);
+    if(mirror) ctx.scale(-1,1);
+    ctx.rotate(rot*Math.PI/180);
+    ctx.beginPath();
+    const cx = avg(poly.map(p=>p[0]));
+    const cy = avg(poly.map(p=>p[1]));
+    ctx.moveTo(poly[0][0]-cx, poly[0][1]-cy);
+    for(let i=1;i<poly.length;i++) ctx.lineTo(poly[i][0]-cx, poly[i][1]-cy);
+    ctx.closePath();
+    ctx.strokeStyle = stroke;
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  /*************************
+   * JOC 2: Symmetry Painter
+   *************************/
+  const SymmetryPainter = {
+    name: 'Symmetry Painter',
+    container: null,
+    gridEl: null,
+    levelIndex: 0,
+    grid: [],
+    targetMask: [],
+    symmetry: 'axial-y', // (eix vertical)
+    rows: 0, cols: 0,
+
+    init(root, onScore){
+      this.onScore = onScore;
+      this.levelIndex = 0;
+      this.container = document.createElement('div');
+      this.container.className = 'flex flex-col gap-3';
+      this.container.innerHTML = `
+        <div class="text-sm text-slate-600">Pinta cel·les a la dreta replicant la meitat esquerra (simetria axial vertical). Fes clic per alternar.</div>
+        <div id="sym-grid" class="inline-block bg-white p-2 rounded-xl border shadow"></div>
+        <div class="text-sm text-slate-500">Consell: fes servir patrons i línies guia.</div>`;
+      root.appendChild(this.container);
+      this.gridEl = this.container.querySelector('#sym-grid');
+      this.loadLevel(0);
+    },
+    destroy(){ this.container?.remove(); },
+    reset(){ this.loadLevel(this.levelIndex); },
+    next(){
+      const n = LEVELS.symmetry_painter.length;
+      this.levelIndex = (this.levelIndex+1)%n;
+      this.loadLevel(this.levelIndex);
+    },
+    loadLevel(i){
+      const L = LEVELS.symmetry_painter[i];
+      this.rows=L.rows; this.cols=L.cols; this.symmetry=L.symmetry;
+      // target: funció -> mascara esquerra
+      const leftCols = Math.floor(this.cols/2);
+      this.targetMask = Array.from({length:this.rows}, (_,r)=>
+        Array.from({length:this.cols}, (_,c)=> (c<leftCols ? (L.target(r,c)?1:0) : 0))
+      );
+      // estat d'alumna (buida)
+      this.grid = Array.from({length:this.rows}, ()=> Array(this.cols).fill(0));
+      this.render();
+    },
+    render(){
+      this.gridEl.innerHTML='';
+      this.gridEl.style.display='grid';
+      this.gridEl.style.gridTemplateColumns = `repeat(${this.cols}, 24px)`;
+      for(let r=0;r<this.rows;r++){
+        for(let c=0;c<this.cols;c++){
+          const cell = document.createElement('div');
+          cell.className='cell';
+          // mostra la meitat esquerra (objectiu) com a "hint"
+          if(this.targetMask[r][c]===1){ cell.classList.add('hint'); }
+          // estat alumna
+          if(this.grid[r][c]===1){ cell.classList.add('on'); }
+          cell.onclick = ()=> this.toggle(r,c);
+          this.gridEl.appendChild(cell);
+        }
+      }
+      this.checkWin();
+    },
+    toggle(r,c){
+      // només pot pintar a la meitat dreta perquè copiï la simetria
+      if(c < Math.floor(this.cols/2)) return;
+      this.grid[r][c] = this.grid[r][c] ? 0 : 1;
+      // forçar mirall a l’altra banda si toca (opcional): aquí no, és “pintar la part que falta”.
+      this.render();
+    },
+    checkWin(){
+      // comprovar que la meitat dreta és el reflex de l’esquerra
+      const mid = Math.floor(this.cols/2);
+      for(let r=0;r<this.rows;r++){
+        for(let c=0;c<mid;c++){
+          const left = this.targetMask[r][c];
+          const mirrorC = this.cols-1-c;
+          const right = this.grid[r][mirrorC];
+          if(left !== right) { return; }
+        }
+      }
+      // si tot ok → puntuació i passa de nivell
+      this.onScore(20);
+      pulse(this.gridEl);
+    }
+  };
+
+  /**********************
+   * JOC 3: Map Hunt
+   **********************/
+  const MapHunt = {
+    name: 'Map Hunt',
+    container: null,
+    canvas: null,
+    ctx: null,
+    levelIndex: 0,
+    rows: 0, cols: 0,
+    cellSize: 36,
+    player: {r:0,c:0,heading:'E'},
+    targetsLeft: 0,
+    hints: [],
+    onKey: null,
+
+    init(root, onScore){
+      this.onScore = onScore;
+      this.levelIndex = 0;
+      this.container = document.createElement('div');
+      this.container.className = 'flex flex-col gap-2';
+      this.container.innerHTML = `
+        <div class="text-sm text-slate-600">Mou-te amb fletxes. Llegeix les pistes (N/E/S/O) i troba els objectes 🎯 al mapa.</div>
+        <canvas id="mh" class="border rounded-xl bg-white shadow"></canvas>
+        <div class="text-sm text-slate-500">Prem <span class="kbd">R</span> per reiniciar el nivell.</div>`;
+      root.appendChild(this.container);
+      this.canvas = this.container.querySelector('#mh');
+      this.ctx = this.canvas.getContext('2d');
+      this.loadLevel(0);
+
+      this.onKey = (e)=>{
+        if(e.key==='ArrowUp') this.move(-1,0);
+        if(e.key==='ArrowDown') this.move(1,0);
+        if(e.key==='ArrowLeft') this.move(0,-1);
+        if(e.key==='ArrowRight') this.move(0,1);
+        if(e.key.toLowerCase()==='r') this.loadLevel(this.levelIndex);
+      };
+      window.addEventListener('keydown', this.onKey);
+    },
+    destroy(){ window.removeEventListener('keydown', this.onKey); this.container?.remove(); },
+    reset(){ this.loadLevel(this.levelIndex); },
+    next(){
+      const n = LEVELS.map_hunt.length;
+      this.levelIndex = (this.levelIndex+1)%n;
+      this.loadLevel(this.levelIndex);
+    },
+    loadLevel(i){
+      const L = LEVELS.map_hunt[i];
+      this.rows=L.rows; this.cols=L.cols;
+      this.player = {r:L.start[0], c:L.start[1], heading:L.heading};
+      this.targetsLeft = L.targets;
+      this.hints = [...L.hints];
+      // canvas
+      this.canvas.width = this.cols*this.cellSize;
+      this.canvas.height = this.rows*this.cellSize + 32;
+      this.draw();
+    },
+    move(dr,dc){
+      const nr = clamp(this.player.r+dr, 0, this.rows-1);
+      const nc = clamp(this.player.c+dc, 0, this.cols-1);
+      this.player.r = nr; this.player.c = nc;
+      // consumeix pista cada 2 moviments? simplifiquem: cada 1 moviment mostra pista a barra
+      this.draw();
+      // quan cau exactament en multiplicitat de pista → apareix 🎯
+      if(this.hints.length>0){
+        const step = this.parseStep(this.hints[0]);
+        // si coincideix amb la posició esperada segons seqüència, fem aparèixer objectiu simple:
+        // Implementació simple: cada cop que el jugador es mou, comparem vector de moviment amb pista pendent
+        // Simplificació pedagògica: un objectiu apareix cada 5 passos fets — definim-ho per feedback immediat.
+      }
+    },
+    parseStep(token){
+      // token com 'N2', 'E3'...
+      const dir = token[0];
+      const n = parseInt(token.slice(1),10)||1;
+      return {dir, n};
+    },
+    draw(){
+      const ctx=this.ctx, cs=this.cellSize;
+      ctx.clearRect(0,0,this.canvas.width,this.canvas.height);
+      // graella
+      ctx.strokeStyle='#e5e7eb';
+      for(let r=0;r<this.rows;r++){
+        for(let c=0;c<this.cols;c++){
+          ctx.strokeRect(c*cs,r*cs,cs,cs);
+        }
+      }
+      // jugador
+      ctx.fillStyle='#0ea5e9';
+      ctx.fillRect(this.player.c*cs+4, this.player.r*cs+4, cs-8, cs-8);
+      // targets “virtuals”: simplement dibuixem quants falten
+      ctx.fillStyle='#334155';
+      ctx.fillRect(0,this.rows*cs,this.canvas.width,32);
+      ctx.fillStyle='white';
+      ctx.font='12px system-ui';
+      ctx.fillText(`🎯 Objectius: ${this.targetsLeft}  —  Pistes: ${this.hints.join(', ')}`, 8, this.rows*cs+20);
+
+      // condició de “troballa” per joc senzill: si el jugador toca una cantonada (0 o max) i encara queden objectius
+      if(this.targetsLeft>0 && (this.player.r===0 || this.player.c===0 || this.player.r===this.rows-1 || this.player.c===this.cols-1)){
+        this.targetsLeft--;
+        this.onScore(5);
+        pulse(this.canvas);
+        // quan zero → nivell completat
+        if(this.targetsLeft===0){
+          alert('🎯 Nivell completat!');
+        }
+      }
+    }
+  };
+
+  /**********************
+   * REGISTRE DE JOCS
+   **********************/
+  const GAMES = {
+    rotation_rush: RotationRush,
+    symmetry_painter: SymmetryPainter,
+    map_hunt: MapHunt
+  };
+
+  /**********************
+   * HELPERS
+   **********************/
+  function sample(arr){ return arr[Math.floor(Math.random()*arr.length)]; }
+  function avg(arr){ return arr.reduce((a,b)=>a+b,0)/arr.length; }
+  function clamp(v,min,max){ return Math.max(min, Math.min(max, v)); }
+  function shake(node){
+    node.animate(
+      [{transform:"translateX(0)"},{transform:"translateX(-6px)"},{transform:"translateX(6px)"},{transform:"translateX(0)"}],
+      {duration:180}
+    );
+  }
+  function pulse(node){
+    node.animate(
+      [{transform:"scale(1)"},{transform:"scale(1.03)"},{transform:"scale(1)"}],
+      {duration:220, easing:'ease-out'}
+    );
+  }
+
+  </script>
+</body>
+</html>
 
