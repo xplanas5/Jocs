@@ -9,7 +9,7 @@
   <style>
     *,*::before,*::after{ box-sizing:border-box; }
     html,body,#root{ height:100%; width:100%; margin:0; }
-    body{ min-height:100vh; min-width:100vw; overflow-x:hidden; overflow-y:auto; }
+    body{ min-height:100vh; min-width:90vw; overflow-x:hidden; overflow-y:auto; }
     #root{ display:flex; min-height:100vh; min-width:100vw; }
     .app-container{ flex:1 0 auto; min-height:100vh; width:100%; }
     @supports (height: 100dvh){ body,#root,.app-container{ min-height:100dvh; } }
@@ -73,9 +73,9 @@
           <label for="tiles" class="block text-xs uppercase tracking-wide opacity-70 mb-1">Caselles</label>
           <select id="tiles"
                   class="w-full rounded-xl px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700">
-            <option value="10">10 (5 parelles)</option>
-            <option value="16" selected>16 (8 parelles)</option>
-            <option value="22">22 (11 parelles)</option>
+            <option value="8">10 (4 parelles)</option>
+            <option value="18" selected>16 (9 parelles)</option>
+            <option value="28">22 (14 parelles)</option>
           </select>
         </div>
 
@@ -344,3 +344,4 @@
   </script>
 </body>
 </html>
+
