@@ -12,37 +12,36 @@
     body{ min-height:100vh; min-width:100vw; overflow-x:hidden; overflow-y:auto; }
     #root{ display:flex; min-height:100vh; min-width:100vw; }
     .app-container{ flex:1 0 auto; min-height:100vh; width:100%; }
-    @supports (height: 100dvh){
-      body, #root, .app-container{ min-height:100dvh; }
+    @supports (height: 100dvh){ body,#root,.app-container{ min-height:100dvh; } }
+
+    /* ===== Grid segur (sense dependència d'arbitrary props de Tailwind) */
+    .board{
+      display:grid;
+      grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+      gap: .75rem; /* 12px */
     }
-    /* Flip 3D per a les cartes */
+
+    /* ===== Flip 3D i feedback */
     .card-3d{ perspective:1000px; }
     .card-inner{
-      position:relative; transform-style:preserve-3d;
+      position:relative; width:100%; height:100%;
+      transform-style:preserve-3d;
       transition: transform .45s ease;
     }
     .card-face{
       backface-visibility:hidden; -webkit-backface-visibility:hidden;
       position:absolute; inset:0;
     }
-    .card-front{ transform: rotateY(180deg); } /* CONTINGUT OCULT AL INICI */
-    .card-back{ transform: rotateY(0deg); }    /* "?" VISIBLE */
-    .revealed .card-inner{ transform: rotateY(180deg); } /* MOSTRA CONTINGUT, OCULTA "?" */
-    /* Feedback d'error breu */
+    .card-front{ transform: rotateY(180deg); } /* CONTINGUT OCULT d'entrada */
+    .card-back{ transform: rotateY(0deg); }    /* "?" VISIBLE d'entrada */
+    .revealed .card-inner{ transform: rotateY(180deg); } /* mostra contingut */
+
     .shake { animation: shake .28s ease; }
     @keyframes shake{
-      0%{ transform:translateX(0) }
-      25%{ transform:translateX(-6px) }
-      50%{ transform:translateX(6px) }
-      75%{ transform:translateX(-4px) }
+      0%{ transform:translateX(0) } 25%{ transform:translateX(-6px) }
+      50%{ transform:translateX(6px) } 75%{ transform:translateX(-4px) }
       100%{ transform:translateX(0) }
     }
-    /* Fade-in suau d'elements */
-    @keyframes fadeInUp{
-      from{ opacity:0; transform:translateY(10px) }
-      to{ opacity:1; transform:translateY(0) }
-    }
-    .fadeInUp{ animation: fadeInUp .4s ease-out both; }
   </style>
 </head>
 <body class="transition-colors duration-300 bg-gradient-to-br from-purple-100 via-pink-100 to-blue-100 text-slate-800 dark:from-slate-950 dark:via-slate-900 dark:to-slate-900 dark:text-slate-100">
@@ -67,7 +66,7 @@
       <div class="grid gap-4 md:grid-cols-[1fr_auto_auto_auto] items-end">
         <div class="rounded-2xl p-4 bg-white/70 dark:bg-slate-800/60 border border-black/5 dark:border-white/10 shadow-sm">
           <label class="block text-xs uppercase tracking-wide opacity-70 mb-1">Descripció</label>
-          <p class="text-sm opacity-90">Torna les parelles <strong>Operació ↔ Resultat</strong>. Pots triar el nombre de caselles i el resultat màxim.</p>
+          <p class="text-sm opacity-90">Torna les parelles <strong>Operació ↔ Resultat</strong>. Tria caselles i resultat màxim.</p>
         </div>
 
         <div class="rounded-2xl p-4 bg-white/70 dark:bg-slate-800/60 border border-black/5 dark:border-white/10 shadow-sm">
@@ -104,4 +103,244 @@
       <!-- Stats -->
       <div class="mt-4 flex flex-wrap gap-3">
         <div class="rounded-xl px-4 py-2 bg-white/70 dark:bg-slate-800/60 border border-black/5 dark:border-white/10">
-          ⏱️ <span class="font-bold" id="time">00:00</sp
+          ⏱️ <span class="font-bold" id="time">00:00</span>
+        </div>
+        <div class="rounded-xl px-4 py-2 bg-white/70 dark:bg-slate-800/60 border border-black/5 dark:border-white/10">
+          ✅ Encerts: <span class="font-bold" id="hits">0</span>
+        </div>
+        <div class="rounded-xl px-4 py-2 bg-white/70 dark:bg-slate-800/60 border border-black/5 dark:border-white/10">
+          ❌ Errors: <span class="font-bold" id="miss">0</span>
+        </div>
+      </div>
+
+      <!-- Missatges -->
+      <p id="message" class="mt-3 text-sm"></p>
+
+      <!-- Grid (ara amb .board) -->
+      <main id="grid" class="board mt-6"></main>
+    </div>
+
+    <!-- Footer -->
+    <footer class="mt-auto text-center p-4 text-xs text-slate-600 dark:text-slate-400">
+      <p>Joc creat per a GitHub Pages · Sense dependències. Estil inspirat en el teu “Tutifruti”.</p>
+      <p>Llicència: CC BY-NC-SA 4.0</p>
+    </footer>
+  </div>
+
+  <script>
+    // ===== Dark mode toggle amb preferència guardada
+    const rootEl = document.documentElement;
+    const savedTheme = localStorage.getItem('theme');
+    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    if ((savedTheme === 'dark') || (!savedTheme && prefersDark)) rootEl.classList.add('dark');
+    document.getElementById('toggleDark').addEventListener('click', () => {
+      rootEl.classList.toggle('dark');
+      localStorage.setItem('theme', rootEl.classList.contains('dark') ? 'dark' : 'light');
+    });
+
+    // ===== Elements UI
+    const els = {
+      grid: document.getElementById('grid'),
+      tiles: document.getElementById('tiles'),
+      maxRes: document.getElementById('maxRes'),
+      time: document.getElementById('time'),
+      hits: document.getElementById('hits'),
+      miss: document.getElementById('miss'),
+      newBtn: document.getElementById('new'),
+      resetBtn: document.getElementById('reset'),
+      msg: document.getElementById('message'),
+    };
+
+    // ===== Estat
+    let state = {
+      deck: [],
+      revealed: [],          // ids revelats (no resolts)
+      matchedKeys: new Set(),// claus (suma) ja encertades
+      hits: 0,
+      miss: 0,
+      timerId: null,
+      startTs: null,
+      playing: false,
+      lock: false,
+      pairsNeeded: 0,
+    };
+
+    // ===== Utils
+    function mmss(ms){
+      const s = Math.floor(ms/1000);
+      const m = Math.floor(s/60);
+      const r = s % 60;
+      return String(m).padStart(2,'0')+':'+String(r).padStart(2,'0');
+    }
+    function startTimer(){
+      if (state.timerId) return;
+      state.startTs = Date.now();
+      els.time.textContent = '00:00';
+      state.timerId = setInterval(()=>{ els.time.textContent = mmss(Date.now()-state.startTs); }, 200);
+    }
+    function stopTimer(){ if (state.timerId){ clearInterval(state.timerId); state.timerId = null; } }
+    function shuffle(a){ for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } return a; }
+    const randInt = (min,max)=> Math.floor(Math.random()*(max-min+1))+min;
+
+    // ===== Mazo (resultats únics)
+    function generateDeck(pairCount, maxR){
+      const possibleSums = [];
+      for(let s=2; s<=maxR; s++) possibleSums.push(s);
+      if (pairCount > possibleSums.length){
+        throw new Error(`Resultat màxim massa baix. Necessites com a mínim ${pairCount+1}.`);
+      }
+      shuffle(possibleSums);
+      const chosen = possibleSums.slice(0, pairCount);
+      const deck = [];
+      let id=0;
+      for(const sum of chosen){
+        const a = randInt(1, sum-1);
+        const b = sum - a;
+        deck.push(
+          { id:id++, key:sum, type:'sum', label:`${a} + ${b}` },
+          { id:id++, key:sum, type:'res', label:String(sum) }
+        );
+      }
+      return shuffle(deck);
+    }
+
+    // ===== Render
+    function render(){
+      els.grid.innerHTML = '';
+      state.deck.forEach((card)=>{
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.dataset.id = card.id;
+        btn.className =
+          'card-3d relative h-[120px] sm:h-[130px] rounded-2xl focus:outline-none focus:ring-2 ' +
+          'focus:ring-emerald-400/70 transition-transform';
+
+        // Flip container
+        const inner = document.createElement('div');
+        inner.className = 'card-inner';
+
+        // Front (contingut ocult al principi)
+        const front = document.createElement('div');
+        front.className =
+          'card-face card-front rounded-2xl grid place-items-center ' +
+          'bg-gradient-to-br from-emerald-400 to-emerald-600 text-white ' +
+          'text-2xl sm:text-3xl font-black border border-emerald-500/40 shadow-lg';
+        front.textContent = card.label;
+
+        // Back ("?" visible al principi) — contrast alt
+        const back = document.createElement('div');
+        back.className =
+          'card-face card-back rounded-2xl grid place-items-center ' +
+          'bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 ' +
+          'text-slate-600 dark:text-slate-200 text-4xl sm:text-5xl select-none';
+        back.textContent = '?';
+
+        inner.appendChild(front);
+        inner.appendChild(back);
+        btn.appendChild(inner);
+
+        btn.addEventListener('click', ()=> onFlip(card.id));
+        els.grid.appendChild(btn);
+      });
+      updateCardClasses();
+    }
+
+    function setMessage(text, isError=false){
+      els.msg.textContent = text || '';
+      els.msg.className = 'mt-3 text-sm ' + (isError ? 'text-rose-500' : 'text-slate-600 dark:text-slate-300');
+    }
+    function setStats(){ els.hits.textContent = state.hits; els.miss.textContent = state.miss; }
+
+    function updateCardClasses(){
+      const map = new Map(state.deck.map(c=>[c.id, c]));
+      [...els.grid.children].forEach(btn=>{
+        const id = Number(btn.dataset.id);
+        const card = map.get(id);
+        const revealed = state.revealed.includes(id);
+        const matched = state.matchedKeys.has(card.key);
+        btn.classList.toggle('revealed', revealed || matched);
+        if (matched){
+          btn.classList.add('ring-2','ring-emerald-400/60');
+        } else {
+          btn.classList.remove('ring-2','ring-emerald-400/60');
+        }
+      });
+    }
+
+    function finishIfDone(){
+      if (state.matchedKeys.size === state.pairsNeeded){
+        stopTimer();
+        setMessage(`🎉 Partida acabada en ${els.time.textContent}. Encerts: ${state.hits}, Errors: ${state.miss}`);
+        state.playing = false;
+      }
+    }
+
+    // ===== Joc
+    function onFlip(id){
+      if (!state.playing || state.lock) return;
+      const card = state.deck.find(c=>c.id===id);
+      if (!card) return;
+      if (state.matchedKeys.has(card.key)) return;     // ja resolt
+      if (!state.startTs) startTimer();                // arrenca cronòmetre
+      if (state.revealed.includes(id)) return;         // ja revelada
+
+      state.revealed.push(id);
+      updateCardClasses();
+
+      if (state.revealed.length === 2){
+        state.lock = true;
+        const [id1,id2] = state.revealed;
+        const c1 = state.deck.find(c=>c.id===id1);
+        const c2 = state.deck.find(c=>c.id===id2);
+
+        if (c1.key === c2.key && c1.type !== c2.type){
+          state.hits++; setStats();
+          state.matchedKeys.add(c1.key);
+          setTimeout(()=>{ state.revealed = []; state.lock = false; updateCardClasses(); finishIfDone(); }, 250);
+        } else {
+          state.miss++; setStats();
+          const setIds = new Set([id1,id2]);
+          [...els.grid.children].forEach(b=>{
+            const bid = Number(b.dataset.id);
+            if (setIds.has(bid)){ b.classList.add('shake'); setTimeout(()=> b.classList.remove('shake'), 260); }
+          });
+          setTimeout(()=>{ state.revealed = []; state.lock = false; updateCardClasses(); }, 420);
+        }
+      }
+    }
+
+    function newGame(){
+      stopTimer();
+      state = { deck:[], revealed:[], matchedKeys:new Set(), hits:0, miss:0, timerId:null, startTs:null, playing:true, lock:false, pairsNeeded:0 };
+      setStats(); els.time.textContent='00:00'; setMessage('');
+      const total = Number(els.tiles.value);
+      const pairs = Math.floor(total/2);
+      const maxR = Number(els.maxRes.value);
+
+      try{
+        state.deck = generateDeck(pairs, maxR);
+        state.pairsNeeded = pairs;
+        render();
+      }catch(e){
+        setMessage('⚠️ ' + e.message, true);
+        state.playing = false;
+        els.grid.innerHTML = '';
+      }
+    }
+
+    function resetBoard(){
+      if (!state.deck.length){ newGame(); return; }
+      stopTimer();
+      state.revealed = [];
+      state.matchedKeys = new Set();
+      state.hits = 0; state.miss = 0; state.startTs = null; state.playing = true; state.lock=false;
+      setStats(); els.time.textContent='00:00'; setMessage('');
+      render();
+    }
+
+    els.newBtn.addEventListener('click', newGame);
+    els.resetBtn.addEventListener('click', resetBoard);
+    newGame();
+  </script>
+</body>
+</html>
