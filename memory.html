@@ -5,23 +5,32 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Memory de Sumes</title>
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
+
+  <!-- Tailwind CDN -->
+  <script>
+    // Configurar Tailwind perquè el mode fosc funcioni per classe 'dark'
+    window.tailwind = { config: { darkMode: 'class' } };
+  </script>
   <script src="https://cdn.tailwindcss.com"></script>
+
   <style>
     *,*::before,*::after{ box-sizing:border-box; }
     html,body,#root{ height:100%; width:100%; margin:0; }
-    body{ min-height:100vh; min-width:90vw; overflow-x:hidden; overflow-y:auto; }
+    body{ min-height:100vh; min-width:100vw; overflow-x:hidden; overflow-y:auto; }
     #root{ display:flex; min-height:100vh; min-width:100vw; }
     .app-container{ flex:1 0 auto; min-height:100vh; width:100%; }
     @supports (height: 100dvh){ body,#root,.app-container{ min-height:100dvh; } }
 
-    /* ===== Grid segur (sense dependència d'arbitrary props de Tailwind) */
+    /* Board de 2 columnes fixes (parelles per fila) i centrat */
     .board{
       display:grid;
-      grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+      grid-template-columns: repeat(2, minmax(130px, 1fr));
       gap: .75rem; /* 12px */
+      width: min(420px, 95vw);   /* ample compacte segons cartes */
+      margin-inline: auto;       /* centrat horitzontal */
     }
 
-    /* ===== Flip 3D i feedback */
+    /* Flip 3D i feedback */
     .card-3d{ perspective:1000px; }
     .card-inner{
       position:relative; width:100%; height:100%;
@@ -32,8 +41,8 @@
       backface-visibility:hidden; -webkit-backface-visibility:hidden;
       position:absolute; inset:0;
     }
-    .card-front{ transform: rotateY(180deg); } /* CONTINGUT OCULT d'entrada */
-    .card-back{ transform: rotateY(0deg); }    /* "?" VISIBLE d'entrada */
+    .card-front{ transform: rotateY(180deg); } /* CONTINGUT OCULT a l'inici */
+    .card-back{ transform: rotateY(0deg); }    /* "?" VISIBLE a l'inici */
     .revealed .card-inner{ transform: rotateY(180deg); } /* mostra contingut */
 
     .shake { animation: shake .28s ease; }
@@ -66,16 +75,18 @@
       <div class="grid gap-4 md:grid-cols-[1fr_auto_auto_auto] items-end">
         <div class="rounded-2xl p-4 bg-white/70 dark:bg-slate-800/60 border border-black/5 dark:border-white/10 shadow-sm">
           <label class="block text-xs uppercase tracking-wide opacity-70 mb-1">Descripció</label>
-          <p class="text-sm opacity-90">Torna les parelles <strong>Operació ↔ Resultat</strong>. Tria caselles i resultat màxim.</p>
+          <p class="text-sm opacity-90">Torna les parelles <strong>Operació ↔ Resultat</strong>. Les parelles es col·loquen <strong>per files</strong> (2 columnes), amb ordre aleatori dins de cada fila.</p>
         </div>
 
         <div class="rounded-2xl p-4 bg-white/70 dark:bg-slate-800/60 border border-black/5 dark:border-white/10 shadow-sm">
           <label for="tiles" class="block text-xs uppercase tracking-wide opacity-70 mb-1">Caselles</label>
           <select id="tiles"
                   class="w-full rounded-xl px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700">
-            <option value="8">10 (4 parelles)</option>
-            <option value="18" selected>16 (9 parelles)</option>
-            <option value="28">22 (14 parelles)</option>
+            <option value="10" selected>10 (5 parelles)</option>
+            <option value="12">12 (6 parelles)</option>
+            <option value="16">16 (8 parelles)</option>
+            <option value="18">18 (9 parelles)</option>
+            <option value="20">20 (10 parelles)</option>
           </select>
         </div>
 
@@ -83,7 +94,7 @@
           <label for="maxRes" class="block text-xs uppercase tracking-wide opacity-70 mb-1">Resultat màxim</label>
           <input id="maxRes" type="number" min="4" value="20"
                  class="w-36 rounded-xl px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700" />
-          <p class="text-xs mt-1 opacity-70">Per 22 caselles recomanat ≥ 12</p>
+          <p class="text-xs mt-1 opacity-70">Assegura prou resultats únics (p. ex. ≥ nombre de parelles + 1).</p>
         </div>
 
         <div class="flex gap-2">
@@ -116,27 +127,29 @@
       <!-- Missatges -->
       <p id="message" class="mt-3 text-sm"></p>
 
-      <!-- Grid (ara amb .board) -->
+      <!-- Board (2 columnes, parelles per fila i centrat) -->
       <main id="grid" class="board mt-6"></main>
     </div>
 
     <!-- Footer -->
     <footer class="mt-auto text-center p-4 text-xs text-slate-600 dark:text-slate-400">
-      <p>Joc creat per a GitHub Pages · Sense dependències. Estil inspirat en el teu “Tutifruti”.</p>
+      <p>Joc creat per a GitHub Pages · Sense dependències. Estil inspirat en “Tutifruti”.</p>
       <p>Llicència: CC BY-NC-SA 4.0</p>
     </footer>
   </div>
 
   <script>
-    // ===== Dark mode toggle amb preferència guardada
-    const rootEl = document.documentElement;
-    const savedTheme = localStorage.getItem('theme');
-    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-    if ((savedTheme === 'dark') || (!savedTheme && prefersDark)) rootEl.classList.add('dark');
-    document.getElementById('toggleDark').addEventListener('click', () => {
-      rootEl.classList.toggle('dark');
-      localStorage.setItem('theme', rootEl.classList.contains('dark') ? 'dark' : 'light');
-    });
+    // ===== Dark mode toggle amb preferència guardada (classe 'dark' a <html>)
+    (function initTheme(){
+      const rootEl = document.documentElement;
+      const saved = localStorage.getItem('theme');           // 'dark' | 'light' | null
+      const preferDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      if ((saved === 'dark') || (!saved && preferDark)) rootEl.classList.add('dark');
+      document.getElementById('toggleDark').addEventListener('click', () => {
+        rootEl.classList.toggle('dark');
+        localStorage.setItem('theme', rootEl.classList.contains('dark') ? 'dark' : 'light');
+      });
+    })();
 
     // ===== Elements UI
     const els = {
@@ -153,9 +166,9 @@
 
     // ===== Estat
     let state = {
-      deck: [],
-      revealed: [],          // ids revelats (no resolts)
-      matchedKeys: new Set(),// claus (suma) ja encertades
+      deck: [],           // cartes lineals [pair1cardA, pair1cardB, pair2cardA, pair2cardB, ...]
+      revealed: [],       // ids revelats (no resolts)
+      matchedKeys: new Set(),  // claus (suma) ja encertades
       hits: 0,
       miss: 0,
       timerId: null,
@@ -182,8 +195,12 @@
     function shuffle(a){ for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } return a; }
     const randInt = (min,max)=> Math.floor(Math.random()*(max-min+1))+min;
 
-    // ===== Mazo (resultats únics)
-    function generateDeck(pairCount, maxR){
+    // ===== Generació amb parelles per fila
+    // 1) triem 'pairCount' resultats únics
+    // 2) fem una parella [operació, resultat] per a cadascun
+    // 3) barregem les files (ordre de parelles), però mantenim les dues cartes contigües
+    // 4) dins de cada fila, aleatoritzem l'ordre esquerra/dreta
+    function generatePairedRowsDeck(pairCount, maxR){
       const possibleSums = [];
       for(let s=2; s<=maxR; s++) possibleSums.push(s);
       if (pairCount > possibleSums.length){
@@ -191,23 +208,27 @@
       }
       shuffle(possibleSums);
       const chosen = possibleSums.slice(0, pairCount);
-      const deck = [];
-      let id=0;
-      for(const sum of chosen){
+
+      let nextId = 0;
+      const rows = chosen.map(sum => {
         const a = randInt(1, sum-1);
         const b = sum - a;
-        deck.push(
-          { id:id++, key:sum, type:'sum', label:`${a} + ${b}` },
-          { id:id++, key:sum, type:'res', label:String(sum) }
-        );
-      }
-      return shuffle(deck);
+        const cardSum = { id: nextId++, key: sum, type:'sum', label: `${a} + ${b}` };
+        const cardRes = { id: nextId++, key: sum, type:'res', label: String(sum) };
+        // Aleatoritza ordre dins la fila
+        return Math.random() < 0.5 ? [cardSum, cardRes] : [cardRes, cardSum];
+      });
+
+      // barregem les files
+      shuffle(rows);
+
+      // aplanem en un array lineal [c0,c1,c2,c3,...]
+      return rows.flat();
     }
 
-    // ===== Render
     function render(){
       els.grid.innerHTML = '';
-      state.deck.forEach((card)=>{
+      state.deck.forEach(card=>{
         const btn = document.createElement('button');
         btn.type = 'button';
         btn.dataset.id = card.id;
@@ -215,11 +236,10 @@
           'card-3d relative h-[120px] sm:h-[130px] rounded-2xl focus:outline-none focus:ring-2 ' +
           'focus:ring-emerald-400/70 transition-transform';
 
-        // Flip container
         const inner = document.createElement('div');
         inner.className = 'card-inner';
 
-        // Front (contingut ocult al principi)
+        // Front (contingut, ocult d'entrada)
         const front = document.createElement('div');
         front.className =
           'card-face card-front rounded-2xl grid place-items-center ' +
@@ -227,7 +247,7 @@
           'text-2xl sm:text-3xl font-black border border-emerald-500/40 shadow-lg';
         front.textContent = card.label;
 
-        // Back ("?" visible al principi) — contrast alt
+        // Back ("?" visible d'entrada)
         const back = document.createElement('div');
         back.className =
           'card-face card-back rounded-2xl grid place-items-center ' +
@@ -275,14 +295,13 @@
       }
     }
 
-    // ===== Joc
     function onFlip(id){
       if (!state.playing || state.lock) return;
       const card = state.deck.find(c=>c.id===id);
       if (!card) return;
-      if (state.matchedKeys.has(card.key)) return;     // ja resolt
-      if (!state.startTs) startTimer();                // arrenca cronòmetre
-      if (state.revealed.includes(id)) return;         // ja revelada
+      if (state.matchedKeys.has(card.key)) return;
+      if (!state.startTs) startTimer();
+      if (state.revealed.includes(id)) return;
 
       state.revealed.push(id);
       updateCardClasses();
@@ -318,7 +337,7 @@
       const maxR = Number(els.maxRes.value);
 
       try{
-        state.deck = generateDeck(pairs, maxR);
+        state.deck = generatePairedRowsDeck(pairs, maxR); // <-- parelles agrupades per fila
         state.pairsNeeded = pairs;
         render();
       }catch(e){
@@ -340,8 +359,9 @@
 
     els.newBtn.addEventListener('click', newGame);
     els.resetBtn.addEventListener('click', resetBoard);
+
+    // partida inicial
     newGame();
   </script>
 </body>
 </html>
-
