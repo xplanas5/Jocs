@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="ca">
+<head>
+  <meta charset="UTF-8">
+  <title>Tetris senzill</title>
+  <style>
+    body { background: #111; color: #eee; font-family: sans-serif; }
+    #tetris { background: #222; margin: 30px auto; display: block; }
+    #info { text-align: center; }
+    button { margin: 10px; }
+  </style>
+</head>
+<body>
+  <canvas id="tetris" width="200" height="400"></canvas>
+  <div id="info">
+    <p>Puntuació: <span id="score">0</span></p>
+    <button onclick="restart()">Reinicia</button>
+    <p>Controls: Fletxes (esquerra, dreta, avall), Z (gira esquerra), X (gira dreta)</p>
+  </div>
+  <script>
+    const canvas = document.getElementById('tetris');
+    const ctx = canvas.getContext('2d');
+    const ROWS = 20, COLS = 10, BLOCK = 20;
+    const COLORS = ["#000", "#0ff", "#ff0", "#f00", "#0f0", "#00f", "#f0f", "#fa0"];
+    const SHAPES = [
+      [],
+      [[1,1,1,1]],                         // I
+      [[2,2],[2,2]],                       // O
+      [[0,3,0],[3,3,3]],                   // T
+      [[0,4,4],[4,4,0]],                   // S
+      [[5,5,0],[0,5,5]],                   // Z
+      [[6,0,0],[6,6,6]],                   // J
+      [[0,0,7],[7,7,7]]                    // L
+    ];
+
+    let arena, piece, pos, score = 0, dropCounter = 0, dropInterval = 800, lastTime = 0, playing = true;
+
+    function createMatrix(r, c) {
+      const m = [];
+      while (r--) m.push(Array(c).fill(0));
+      return m;
+    }
+
+    function merge(arena, piece, pos) {
+      piece.forEach((row, y) => {
+        row.forEach((v, x) => {
+          if (v) arena[y + pos.y][x + pos.x] = v;
+        });
+      });
+    }
+
+    function collide(arena, piece, pos) {
+      for (let y = 0; y < piece.length; ++y)
+        for (let x = 0; x < piece[y].length; ++x)
+          if (piece[y][x] && (arena[y + pos.y] && arena[y + pos.y][x + pos.x]) !== 0)
+            return true;
+      return false;
+    }
+
+    function rotate(matrix, dir) {
+      for (let y = 0; y < matrix.length; ++y)
+        for (let x = 0; x < y; ++x)
+          [matrix[x][y], matrix[y][x]] = [matrix[y][x], matrix[x][y]];
+      if (dir > 0) matrix.forEach(row => row.reverse());
+      else matrix.reverse();
+    }
+
+    function draw() {
+      ctx.fillStyle = "#222";
+      ctx.fillRect(0, 0, COLS * BLOCK, ROWS * BLOCK);
+      drawMatrix(arena, {x:0, y:0});
+      drawMatrix(piece, pos);
+    }
+
+    function drawMatrix(m, offset) {
+      m.forEach((row, y) => {
+        row.forEach((v, x) => {
+          if (v) {
+            ctx.fillStyle = COLORS[v];
+            ctx.fillRect((x + offset.x) * BLOCK, (y + offset.y) * BLOCK, BLOCK-1, BLOCK-1);
+          }
+        });
+      });
+    }
+
+    function drop() {
+      pos.y++;
+      if (collide(arena, piece, pos)) {
+        pos.y--;
+        merge(arena, piece, pos);
+        resetPiece();
+        sweep();
+        if (collide(arena, piece, pos)) {
+          playing = false;
+          alert("Fi del joc! Puntuació: "+score);
+        }
+      }
+      dropCounter = 0;
+    }
+
+    function sweep() {
+      outer: for (let y = arena.length - 1; y >= 0; --y) {
+        for (let x = 0; x < arena[y].length; ++x) {
+          if (!arena[y][x]) continue outer;
+        }
+        arena.splice(y, 1);
+        arena.unshift(Array(COLS).fill(0));
+        ++score;
+        document.getElementById('score').textContent = score;
+        ++y;
+      }
+    }
+
+    function resetPiece() {
+      const t = 1 + Math.random() * 6 | 0;
+      piece = SHAPES[t].map(row => row.slice());
+      pos = {x: (COLS/2|0) - (piece[0].length/2|0), y: 0};
+    }
+
+    function update(time = 0) {
+      if (!playing) return;
+      const delta = time - lastTime;
+      lastTime = time;
+      dropCounter += delta;
+      if (dropCounter > dropInterval) drop();
+      draw();
+      requestAnimationFrame(update);
+    }
+
+    function move(dir) {
+      pos.x += dir;
+      if (collide(arena, piece, pos)) pos.x -= dir;
+    }
+
+    function hardDrop() {
+      while (!collide(arena, piece, pos)) pos.y++;
+      pos.y--;
+      drop();
+    }
+
+    document.addEventListener('keydown', e => {
+      if (!playing) return;
+      if (e.key === "ArrowLeft") move(-1);
+      else if (e.key === "ArrowRight") move(1);
+      else if (e.key === "ArrowDown") drop();
+      else if (e.key === "ArrowUp" || e.key.toLowerCase() === "x") {
+        rotate(piece, 1); if (collide(arena, piece, pos)) rotate(piece, -1);
+      }
+      else if (e.key.toLowerCase() === "z") {
+        rotate(piece, -1); if (collide(arena, piece, pos)) rotate(piece, 1);
+      }
+      else if (e.key === " " || e.key === "Enter") hardDrop();
+    });
+
+    function restart() {
+      arena = createMatrix(ROWS, COLS);
+      score = 0;
+      document.getElementById('score').textContent = score;
+      playing = true;
+      resetPiece();
+      update();
+    }
+
+    // Inici
+    restart();
+  </script>
+</body>
+</html>
