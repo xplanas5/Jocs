@@ -20,22 +20,13 @@
     .app-container{ flex:1 0 auto; min-height:100vh; width:100%; }
     @supports (height: 100dvh){ body,#root,.app-container{ min-height:100dvh; } }
 
-    /* ===== Board genèric (orientació horitzontal a desktop) */
     .board{
-      display:grid;
-      gap:.75rem;
-      margin-inline:auto;
-      align-content:start;
-      width:min(95vw, 1400px);
+      display:grid; gap:.75rem; margin-inline:auto; align-content:start; width:min(95vw, 1400px);
     }
     @media (max-width: 640px){
-      .board{
-        grid-template-columns: repeat(auto-fit, minmax(90px, 1fr)) !important;
-        width: min(96vw, 600px);
-      }
+      .board{ grid-template-columns: repeat(auto-fit, minmax(90px, 1fr)) !important; width: min(96vw, 600px); }
     }
 
-    /* ===== Flip 3D (reutilitzable) */
     .card-3d{ perspective:1000px; }
     .card-inner{ position:relative; width:100%; height:100%; transform-style:preserve-3d; transition: transform .45s ease; }
     .card-face{ position:absolute; inset:0; backface-visibility:hidden; -webkit-backface-visibility:hidden; }
@@ -48,18 +39,12 @@
       100%{ transform:translateX(0) }
     }
 
-    /* Safe-area (iPhone) */
-    .px-safe{
-      padding-left: max(1rem, env(safe-area-inset-left));
-      padding-right: max(1rem, env(safe-area-inset-right));
-    }
+    .px-safe{ padding-left: max(1rem, env(safe-area-inset-left)); padding-right: max(1rem, env(safe-area-inset-right)); }
 
-    /* ===== Symmetry Painter cells */
     .cell { width: 24px; height: 24px; border: 1px solid #e5e7eb; box-sizing:border-box; }
     .cell.on { background:#111827; }
     .cell.hint { outline: 2px dashed #94a3b8; }
 
-    /* ===== Canvas nítid en pantalles denses */
     canvas.pixel { image-rendering: pixelated; }
   </style>
 </head>
@@ -80,7 +65,7 @@
 
     <!-- Contingut -->
     <main class="max-w-7xl mx-auto w-full px-safe py-6">
-      <!-- HUB: targetes de jocs -->
+      <!-- HUB -->
       <section id="hub" class="grid gap-4 md:grid-cols-3">
         <article class="rounded-2xl p-5 bg-white/70 dark:bg-slate-800/60 border border-black/5 dark:border-white/10 shadow-sm flex flex-col">
           <div class="flex items-center justify-between mb-2">
@@ -88,8 +73,7 @@
             <span class="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-700 border">Rotació</span>
           </div>
           <p class="text-sm opacity-80 mb-4">Tria la rotació correcta d’una figura.</p>
-          <button class="mt-auto rounded-xl px-4 py-3 text-sm font-semibold bg-gradient-to-r from-emerald-400 to-emerald-600 text-white border border-emerald-500/30 shadow"
-                  data-start="rotation_rush">Jugar</button>
+          <button class="mt-auto rounded-xl px-4 py-3 text-sm font-semibold bg-gradient-to-r from-emerald-400 to-emerald-600 text-white border border-emerald-500/30 shadow" data-start="rotation_rush">Jugar</button>
         </article>
 
         <article class="rounded-2xl p-5 bg-white/70 dark:bg-slate-800/60 border border-black/5 dark:border-white/10 shadow-sm flex flex-col">
@@ -98,8 +82,7 @@
             <span class="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-700 border">Simetria</span>
           </div>
           <p class="text-sm opacity-80 mb-4">Completa la meitat que falta amb simetria axial.</p>
-          <button class="mt-auto rounded-xl px-4 py-3 text-sm font-semibold bg-gradient-to-r from-emerald-400 to-emerald-600 text-white border border-emerald-500/30 shadow"
-                  data-start="symmetry_painter">Jugar</button>
+          <button class="mt-auto rounded-xl px-4 py-3 text-sm font-semibold bg-gradient-to-r from-emerald-400 to-emerald-600 text-white border border-emerald-500/30 shadow" data-start="symmetry_painter">Jugar</button>
         </article>
 
         <article class="rounded-2xl p-5 bg-white/70 dark:bg-slate-800/60 border border-black/5 dark:border-white/10 shadow-sm flex flex-col">
@@ -108,8 +91,7 @@
             <span class="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-700 border">Orientació</span>
           </div>
           <p class="text-sm opacity-80 mb-4">Mou-te per la graella i segueix pistes N/E/S/O.</p>
-          <button class="mt-auto rounded-xl px-4 py-3 text-sm font-semibold bg-gradient-to-r from-emerald-400 to-emerald-600 text-white border border-emerald-500/30 shadow"
-                  data-start="map_hunt">Jugar</button>
+          <button class="mt-auto rounded-xl px-4 py-3 text-sm font-semibold bg-gradient-to-r from-emerald-400 to-emerald-600 text-white border border-emerald-500/30 shadow" data-start="map_hunt">Jugar</button>
         </article>
 
         <article class="rounded-2xl p-5 bg-white/70 dark:bg-slate-800/60 border border-black/5 dark:border-white/10 shadow-sm flex flex-col">
@@ -118,8 +100,7 @@
             <span class="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-700 border">Encaix</span>
           </div>
           <p class="text-sm opacity-80 mb-4">Omple el tauler amb peces de 5 cel·les. R per rotar · F per reflectir.</p>
-          <button class="mt-auto rounded-xl px-4 py-3 text-sm font-semibold bg-gradient-to-r from-emerald-400 to-emerald-600 text-white border border-emerald-500/30 shadow"
-                  data-start="pentomino">Jugar</button>
+          <button class="mt-auto rounded-xl px-4 py-3 text-sm font-semibold bg-gradient-to-r from-emerald-400 to-emerald-600 text-white border border-emerald-500/30 shadow" data-start="pentomino">Jugar</button>
         </article>
 
         <article class="rounded-2xl p-5 bg-white/70 dark:bg-slate-800/60 border border-black/5 dark:border-white/10 shadow-sm flex flex-col">
@@ -128,8 +109,7 @@
             <span class="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-700 border">Nets 2D→3D</span>
           </div>
           <p class="text-sm opacity-80 mb-4">Plega un patró pla i identifica el sòlid.</p>
-          <button class="mt-auto rounded-xl px-4 py-3 text-sm font-semibold bg-gradient-to-r from-emerald-400 to-emerald-600 text-white border border-emerald-500/30 shadow"
-                  data-start="nets">Jugar</button>
+          <button class="mt-auto rounded-xl px-4 py-3 text-sm font-semibold bg-gradient-to-r from-emerald-400 to-emerald-600 text-white border border-emerald-500/30 shadow" data-start="nets">Jugar</button>
         </article>
       </section>
 
@@ -157,34 +137,27 @@
         </div>
       </section>
 
-      <!-- Missatges globals -->
       <p id="globalMessage" class="mt-4 text-sm"></p>
     </main>
 
-    <!-- Footer -->
     <footer class="mt-auto text-center p-4 text-xs text-slate-600 dark:text-slate-400 px-safe">
       <p>Pack de jocs per a GitHub Pages · Sense dependències extra. Llicència: CC BY-NC-SA 4.0</p>
     </footer>
   </div>
 
   <script>
-    /* ========= Dark mode automàtic (sense botó) ========= */
+    /* ==== Tema automàtic ==== */
     (function initTheme(){
       const rootEl = document.documentElement;
-      const saved = localStorage.getItem('theme'); // 'dark' | 'light'
+      const saved = localStorage.getItem('theme');
       const preferDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
       if ((saved === 'dark') || (!saved && preferDark)) rootEl.classList.add('dark');
     })();
 
-    /* ========= Helpers i referències UI ========= */
+    /* ==== Helpers i UI ==== */
     const el = s => document.querySelector(s);
-    const $hub = el('#hub');
-    const $scene = el('#scene');
-    const $root = el('#gameRoot');
-    const $uiName = el('#uiGameName');
-    const $uiScore = el('#uiScore');
-    const $uiTime = el('#uiTime');
-    const $msg = el('#globalMessage');
+    const $hub = el('#hub'), $scene = el('#scene'), $root = el('#gameRoot');
+    const $uiName = el('#uiGameName'), $uiScore = el('#uiScore'), $uiTime = el('#uiTime'), $msg = el('#globalMessage');
 
     function pulse(node){ node?.animate([{transform:"scale(1)"},{transform:"scale(1.03)"},{transform:"scale(1)"}],{duration:220,easing:'ease-out'}); }
     function shake(node){ node?.animate([{transform:"translateX(0)"},{transform:"translateX(-6px)"},{transform:"translateX(6px)"},{transform:"translateX(0)"}],{duration:180}); }
@@ -192,7 +165,7 @@
     const sample=arr=>arr[Math.floor(Math.random()*arr.length)];
     const avg=arr=>arr.reduce((a,b)=>a+b,0)/arr.length;
 
-    /* ========= Navegació, estat i temporitzador ========= */
+    /* ==== Navegació & Estat ==== */
     function showHub(){ clearTimer(); $scene.classList.add('hidden'); $hub.classList.remove('hidden'); $msg.textContent=''; }
     function showScene(){ $hub.classList.add('hidden'); $scene.classList.remove('hidden'); }
 
@@ -200,18 +173,8 @@
     function setScore(v){ state.score=v; $uiScore.textContent=v; }
     function setTime(v){ state.timeLeft=v; $uiTime.textContent=(v==null?'—':v); }
     function clearTimer(){ if(state.timerId){ clearInterval(state.timerId); state.timerId=null; } }
-    function startTimer(){
-      clearTimer();
-      if(state.timeLeft==null) return;
-      state.timerId = setInterval(()=>{
-        state.timeLeft--; $uiTime.textContent = state.timeLeft;
-        if(state.timeLeft<=0){ endGame('lose'); }
-      },1000);
-    }
-    function endGame(kind){
-      clearTimer();
-      alert(kind==='win' ? `🎉 Ben fet! Punts: ${state.score}` : `⏱️ Temps esgotat. Punts: ${state.score}`);
-    }
+    function startTimer(){ clearTimer(); if(state.timeLeft==null) return; state.timerId = setInterval(()=>{ state.timeLeft--; $uiTime.textContent = state.timeLeft; if(state.timeLeft<=0){ endGame('lose'); } },1000); }
+    function endGame(kind){ clearTimer(); alert(kind==='win' ? `🎉 Ben fet! Punts: ${state.score}` : `⏱️ Temps esgotat. Punts: ${state.score}`); }
 
     function startGame(id){
       const G = GAMES[id];
@@ -225,7 +188,7 @@
     }
     el('#btnNext')?.addEventListener('click', ()=> { if(state.game?.next) state.game.next(); });
 
-    /* ========= Nivells ========= */
+    /* ==== Nivells ==== */
     const LEVELS = {
       rotation_rush: {
         rounds: 10, angles: [90,180,270], allowReflections: true,
@@ -258,7 +221,7 @@
       ]
     };
 
-    /* ========= Joc 1: Rotation Rush ========= */
+    /* ==== Joc 1: Rotation Rush ==== */
     const RotationRush = {
       name:'Rotation Rush', timeLimit:20,
       container:null, canvasBase:null, choicesWrap:null, round:0, correctIndex:0, basePoly:null,
@@ -309,7 +272,7 @@
       ctx.closePath(); ctx.strokeStyle=stroke; ctx.lineWidth=2; ctx.stroke(); ctx.restore();
     }
 
-    /* ========= Joc 2: Symmetry Painter ========= */
+    /* ==== Joc 2: Symmetry Painter ==== */
     const SymmetryPainter = {
       name:'Symmetry Painter', container:null, gridEl:null, levelIndex:0, grid:[], targetMask:[], rows:0, cols:0,
       hint:'Pinta només a la meitat dreta; s’ha de reflectir la meitat esquerra.',
@@ -355,7 +318,7 @@
       }
     };
 
-    /* ========= Joc 3: Map Hunt ========= */
+    /* ==== Joc 3: Map Hunt ==== */
     const MapHunt = {
       name:'Map Hunt', container:null, canvas:null, ctx:null, levelIndex:0,
       rows:0, cols:0, cellSize:36, player:{r:0,c:0}, targetsLeft:0, hints:[], onKey:null,
@@ -400,11 +363,11 @@
       }
     };
 
-    /* ========= Joc 4: Pentomino Packing (simplificat) ========= */
+    /* ==== Joc 4: Pentomino ==== */
     const Pentomino = {
       name:'Pentomino Packing', container:null, canvas:null, ctx:null, levelIdx:0,
       cell:32, rows:0, cols:0, board=[], pieces=[], activeIdx:null, dragOff:[0,0],
-      hint:'Arrossega peces. R: rotar · F: reflectir · Doble clic: deixar a tauler.',
+      hint:'Arrossega peces. R: rotar · F: reflectir.',
       init(root,onScore){
         this.onScore=onScore; this.levelIdx=0;
         this.container=document.createElement('div'); this.container.className='grid lg:grid-cols-[1fr_280px] gap-4';
@@ -422,7 +385,6 @@
         this.canvas=this.container.querySelector('#pento'); this.ctx=this.canvas.getContext('2d');
         this.pList=this.container.querySelector('#pList');
         this.loadLevel(0);
-        // Interacció
         this.canvas.addEventListener('mousedown',e=>this.pointerDown(e));
         this.canvas.addEventListener('mousemove',e=>this.pointerMove(e));
         window.addEventListener('mouseup',()=>this.pointerUp());
@@ -443,7 +405,6 @@
         this.rows=L.rows; this.cols=L.cols;
         this.canvas.width=this.cols*this.cell; this.canvas.height=this.rows*this.cell;
         this.board = Array.from({length:this.rows},()=>Array(this.cols).fill(-1));
-        // Defineix peces bàsiques (coords locals)
         const base = {
           F:[[0,1],[1,0],[1,1],[1,2],[2,2]],
           L:[[0,0],[1,0],[2,0],[3,0],[3,1]],
@@ -453,10 +414,9 @@
           U:[[0,0],[0,2],[1,0],[1,1],[1,2]],
           V:[[0,0],[1,0],[2,0],[2,1],[2,2]]
         };
-        const pick = L.pieces.map(k=>({ id:k, cells:base[k].map(p=>([...p])), pos:{x:this.cols+1,y:1}, rot:0, flip:false, color:this.randColor() }));
-        // col·loca al pallet virtual (fora del canvas)
-        let px=0, py=0;
-        pick.forEach(p=>{ p.pos={x:this.cols+1 + (px%2)*3, y:1 + Math.floor(py/2)*4}; px++; py++; });
+        const pick = L.pieces.map(k=>({ id:k, cells:base[k].map(p=>([...p])), pos:{x:this.cols+1,y:1}, color:this.randColor() }));
+        let iCol=0,iRow=0;
+        pick.forEach(p=>{ p.pos={x:this.cols+1 + (iCol%2)*3, y:1 + Math.floor(iRow/2)*4}; iCol++; iRow++; });
         this.pieces=pick; this.renderPallet(); this.draw();
       },
       randColor(){ const cs=['#ef4444','#f59e0b','#10b981','#3b82f6','#a855f7','#ec4899','#14b8a6']; return sample(cs); },
@@ -469,10 +429,7 @@
           this.pList.appendChild(c);
         });
       },
-      drawPieceMini(g,pc){
-        g.clearRect(0,0,120,80); const s=16;
-        g.fillStyle=pc.color; pc.cells.forEach(([r,c])=>{ g.fillRect(10+c*s,10+r*s,s-2,s-2); });
-      },
+      drawPieceMini(g,pc){ g.clearRect(0,0,120,80); const s=16; g.fillStyle=pc.color; pc.cells.forEach(([r,c])=>{ g.fillRect(10+c*s,10+r*s,s-2,s-2); }); },
       rotate(i){
         const p=this.pieces[i];
         p.cells = p.cells.map(([r,c])=>[c, -r]);
@@ -539,7 +496,7 @@
         for(let r=0;r<this.rows;r++) for(let c=0;c<this.cols;c++){
           const idx=this.board[r][c]; if(idx>=0){ g.fillStyle=this.pieces[idx].color; g.fillRect(c*cs+1,r*cs+1,cs-2,cs-2); }
         }
-        this.pieces.forEach((p,i)=>{
+        this.pieces.forEach((p)=>{
           g.fillStyle=p.color;
           p.cells.forEach(([rr,cc])=>{
             const R=p.pos.y+rr, C=p.pos.x+cc;
@@ -549,7 +506,7 @@
       }
     };
 
-    /* ========= Joc 5: Paper Nets (cube nets bàsic) ========= */
+    /* ==== Joc 5: Paper Nets ==== */
     const Nets = {
       name:'Paper Nets', container:null, canvas:null, ctx:null, levelIdx:0, angle:0,
       hint:'Mou l’angle i observa el plegat. Prem “Valida” per comprovar.',
@@ -593,7 +550,6 @@
           if(m[r][c]){ ctx.strokeRect(ox+c*size, oy+r*size, size, size); ctx.fillStyle='rgba(14,165,233,0.08)'; ctx.fillRect(ox+c*size, oy+r*size, size, size); }
         }
         const ang=this.angle*Math.PI/180, lift=Math.sin(ang)*size;
-        // Cara central “alçada”
         let cr=0, cc=0; outer: for(let r=0;r<nR;r++) for(let c=0;c<nC;c++) if(m[r][c]){ cr=r; cc=c; break outer; }
         ctx.fillStyle='rgba(16,185,129,0.15)'; ctx.fillRect(ox+cc*size, oy+cr*size-lift, size, size);
         ctx.strokeStyle='#10b981'; ctx.strokeRect(ox+cc*size, oy+cr*size-lift, size, size);
@@ -601,66 +557,54 @@
       }
     };
 
-    /* ========= Registre de jocs ========= */
-    const GAMES = {
-      rotation_rush: RotationRush,
-      symmetry_painter: SymmetryPainter,
-      map_hunt: MapHunt,
-      pentomino: Pentomino,
-      nets: Nets
-    };
+    /* ==== Registre ==== */
+    const GAMES = { rotation_rush: RotationRush, symmetry_painter: SymmetryPainter, map_hunt: MapHunt, pentomino: Pentomino, nets: Nets };
+
+    /* ==== Exposa tot a window (fa que altres scripts i el boot ho trobin segur) ==== */
+    Object.assign(window, { GAMES, startGame, showHub, state, setScore, setTime });
   </script>
 
-  <!-- ===== Boot segur i enllaç de botons (DESPRÉS de definir GAMES) ===== -->
+  <!-- ==== Boot segur + Diagnòstic d'errors ==== -->
   <script>
-  (function boot() {
-    function showError(e){
-      console.error(e);
-      const box = document.createElement('div');
-      box.style.cssText = 'position:fixed;inset:auto 1rem 1rem 1rem;padding:12px;border-radius:12px;background:#fee2e2;color:#7f1d1d;border:1px solid #fecaca;font:12px system-ui;z-index:9999;';
-      box.textContent = 'Hi ha hagut un error de JavaScript. Revisa la consola (F12) per veure’n el detall.';
-      document.body.appendChild(box);
-      setTimeout(()=> box.remove(), 6000);
-    }
+    (function boot(){
+      function diag(msg){
+        const box = document.createElement('div');
+        box.style.cssText = 'position:fixed;left:1rem;right:1rem;bottom:1rem;padding:12px;border-radius:12px;background:#fee2e2;color:#7f1d1d;border:1px solid #fecaca;font:12px system-ui;z-index:9999;';
+        box.textContent = msg;
+        document.body.appendChild(box);
+        setTimeout(()=> box.remove(), 8000);
+      }
+      window.onerror = function(message, source, lineno, colno, error){
+        console.error('JS error:', message, source, lineno, colno, error);
+        diag(`Error JS: ${message} (${lineno}:${colno})`);
+      };
+      window.addEventListener('unhandledrejection', (ev)=>{
+        console.error('Unhandled promise rejection:', ev.reason);
+        diag(`Rebuig no gestionat: ${ev.reason && ev.reason.message ? ev.reason.message : ev.reason}`);
+      });
 
-    function wire(){
-      try {
-        // Navegació a Inici
-        document.querySelectorAll('[data-route]').forEach(b=>{
-          b.onclick = () => window.showHub ? showHub() : null;
-        });
-
-        // Engegar jocs
-        document.querySelectorAll('[data-start]').forEach(b=>{
-          b.onclick = () => {
-            const id = b.dataset.start;
-            if (!window.GAMES && !(typeof GAMES === 'object')) throw new Error('GAMES no definit.');
-            if (!GAMES[id]) throw new Error(`Joc "${id}" no registrat a GAMES.`);
-            window.startGame ? startGame(id) : null;
-          };
-        });
-
-        const reset = document.getElementById('btnResetGlobal');
-        if (reset) {
-          reset.onclick = () => {
-            if (window.state?.game?.reset) state.game.reset();
-            if (window.setScore) setScore(0);
-            if (window.setTime) setTime(state.game?.timeLimit ?? null);
-          };
+      function wire(){
+        try{
+          document.querySelectorAll('[data-route]').forEach(b=> b.addEventListener('click', ()=> showHub()));
+          document.querySelectorAll('[data-start]').forEach(b=> b.addEventListener('click', ()=> startGame(b.dataset.start)));
+          const reset = document.getElementById('btnResetGlobal');
+          if(reset){
+            reset.addEventListener('click', ()=>{
+              if (state?.game?.reset) state.game.reset();
+              setScore(0); setTime(state.game?.timeLimit ?? null);
+            });
+          }
+        }catch(e){
+          console.error(e); diag('Hi ha hagut un error en el wiring de botons. Mira la consola.');
         }
+      }
 
-        // Exposa per si cal des de consola
-        window.startGame = window.startGame || startGame;
-        window.showHub = window.showHub || showHub;
-      } catch (e) { showError(e); }
-    }
-
-    if (document.readyState === 'complete' || document.readyState === 'interactive') {
-      setTimeout(wire, 0);
-    } else {
-      document.addEventListener('DOMContentLoaded', wire);
-    }
-  })();
+      if (document.readyState === 'complete' || document.readyState === 'interactive') {
+        setTimeout(wire, 0);
+      } else {
+        document.addEventListener('DOMContentLoaded', wire);
+      }
+    })();
   </script>
 </body>
 </html>
