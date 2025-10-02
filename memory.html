@@ -22,14 +22,16 @@
   .stats{display:flex; gap:14px; align-items:center; font-weight:600}
   .stat{background:#0b1220aa; padding:8px 12px; border:1px solid #1f2937; border-radius:10px}
   .grid{display:grid; gap:12px; padding:14px; background:#0b1220aa; border:1px solid #1f2937; border-radius:16px}
-  /* auto-fit keeps it neat for 10/16/22 */
   .grid{grid-template-columns:repeat(auto-fit,minmax(110px,1fr))}
   .card{position:relative; height:120px; perspective:900px}
   .face{position:absolute; inset:0; border-radius:14px; display:flex; align-items:center; justify-content:center; padding:8px; backface-visibility:hidden; transition:transform .4s ease, background .25s ease, border-color .25s ease}
-  .front{background:var(--card2); border:1px solid #374151}
-  .back{background:var(--card); border:1px dashed #334155; transform:rotateY(180deg); color:#94a3b8}
-  .card.revealed .front{transform:rotateY(180deg)}
-  .card.revealed .back{transform:rotateY(360deg)}
+  /* INICI: es veu el "?" i el contingut queda ocult */
+  .front{background:var(--card2); border:1px solid #374151; transform:rotateY(180deg);} /* CONTINGUT OCULT */
+  .back{background:var(--card); border:1px dashed #334155; color:#94a3b8}             /* "?" VISIBLE */
+  /* En revelar, es mostra el contingut i s'oculta el "?" */
+  .card.revealed .front{transform:rotateY(360deg);}  /* CONTINGUT VISIBLE */
+  .card.revealed .back{transform:rotateY(180deg);}   /* "?" OCULT */
+  /* Estat visual de parella trobada / error momentani */
   .card.matched .front{background:#052e1a; border-color:#16a34a; color:#86efac}
   .card.bad  .front{background:#2a0f13; border-color:#b91c1c; color:#fecaca}
   .msg{margin-top:10px; font-size:.95rem; opacity:.95}
@@ -129,7 +131,7 @@
   const randInt = (min,max)=> Math.floor(Math.random()*(max-min+1))+min;
 
   function generateDeck(pairCount, maxR){
-    // Necessitem pareCount resultats únics amb suma ∈ [2..maxR]
+    // Necessitem pairCount resultats únics amb suma ∈ [2..maxR]
     const possibleSums = [];
     for(let s=2; s<=maxR; s++) possibleSums.push(s);
     if (pairCount > possibleSums.length){
@@ -222,7 +224,6 @@
         state.hits++;
         state.matchedKeys.add(c1.key);
         setStats();
-        // breu feedback verd ja es veu via .matched
         setTimeout(()=>{
           state.revealed = [];
           state.lock = false;
@@ -270,7 +271,6 @@
       state.deck = generateDeck(pairs, maxR);
       state.pairsNeeded = pairs;
       render();
-      // Si el grid no omple exactament, no passa res: CSS auto-fit ho organitza.
     }catch(e){
       setMessage('⚠️ ' + e.message, true);
       state.playing = false;
