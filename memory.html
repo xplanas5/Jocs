@@ -1,0 +1,299 @@
+<!doctype html>
+<html lang="ca">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Memory de Sumes</title>
+<style>
+  :root{
+    --bg:#0f172a; --card:#111827; --card2:#1f2937; --accent:#22c55e; --warn:#ef4444; --text:#e5e7eb;
+  }
+  *{box-sizing:border-box;font-family:system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial}
+  body{margin:0; background:linear-gradient(180deg,#0b1220, #0f172a); color:var(--text); min-height:100vh; display:flex; align-items:center; justify-content:center; padding:24px}
+  .wrap{width:min(1100px,95vw)}
+  header{display:flex; flex-wrap:wrap; gap:10px; align-items:end; justify-content:space-between; margin-bottom:16px}
+  h1{font-size:1.4rem; margin:0}
+  .controls{display:flex; flex-wrap:wrap; gap:10px; align-items:center}
+  .control{background:#0b1220aa; padding:10px 12px; border:1px solid #1f2937; border-radius:12px; display:flex; gap:10px; align-items:center}
+  .control label{font-size:.9rem; opacity:.9}
+  select,input[type=number]{background:var(--card2); color:var(--text); border:1px solid #374151; border-radius:8px; padding:8px 10px; min-width:88px}
+  button{border:0; padding:10px 14px; border-radius:12px; cursor:pointer; color:#0b1220; background:linear-gradient(180deg,#22c55e,#16a34a); font-weight:600}
+  button.secondary{background:#374151; color:var(--text)}
+  .stats{display:flex; gap:14px; align-items:center; font-weight:600}
+  .stat{background:#0b1220aa; padding:8px 12px; border:1px solid #1f2937; border-radius:10px}
+  .grid{display:grid; gap:12px; padding:14px; background:#0b1220aa; border:1px solid #1f2937; border-radius:16px}
+  /* auto-fit keeps it neat for 10/16/22 */
+  .grid{grid-template-columns:repeat(auto-fit,minmax(110px,1fr))}
+  .card{position:relative; height:120px; perspective:900px}
+  .face{position:absolute; inset:0; border-radius:14px; display:flex; align-items:center; justify-content:center; padding:8px; backface-visibility:hidden; transition:transform .4s ease, background .25s ease, border-color .25s ease}
+  .front{background:var(--card2); border:1px solid #374151}
+  .back{background:var(--card); border:1px dashed #334155; transform:rotateY(180deg); color:#94a3b8}
+  .card.revealed .front{transform:rotateY(180deg)}
+  .card.revealed .back{transform:rotateY(360deg)}
+  .card.matched .front{background:#052e1a; border-color:#16a34a; color:#86efac}
+  .card.bad  .front{background:#2a0f13; border-color:#b91c1c; color:#fecaca}
+  .msg{margin-top:10px; font-size:.95rem; opacity:.95}
+  .error{color:#fecaca}
+  footer{margin-top:12px; display:flex; justify-content:space-between; align-items:center; gap:10px}
+  .credits{opacity:.7; font-size:.85rem}
+  @media (max-width:560px){ .card{height:96px} }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <h1>🧠➕ Memory de Sumes</h1>
+      <div class="controls">
+        <div class="control">
+          <label for="tiles">Caselles</label>
+          <select id="tiles">
+            <option value="10">10 (5 parelles)</option>
+            <option value="16" selected>16 (8 parelles)</option>
+            <option value="22">22 (11 parelles)</option>
+          </select>
+        </div>
+        <div class="control">
+          <label for="maxRes">Resultat màxim</label>
+          <input id="maxRes" type="number" min="4" value="20" />
+        </div>
+        <div class="controls">
+          <button id="new">Nova partida</button>
+          <button id="reset" class="secondary">Reinicia</button>
+        </div>
+      </div>
+    </header>
+
+    <div class="stats">
+      <div class="stat">⏱️ Temps: <span id="time">00:00</span></div>
+      <div class="stat">✅ Encerts: <span id="hits">0</span></div>
+      <div class="stat">❌ Errors: <span id="miss">0</span></div>
+    </div>
+
+    <div id="message" class="msg"></div>
+
+    <main id="grid" class="grid" aria-live="polite"></main>
+
+    <footer>
+      <div class="credits">Fet per a GitHub Pages · sense dependències</div>
+      <div><small>Consell: per 22 caselles cal un resultat màxim ≥ 12</small></div>
+    </footer>
+  </div>
+
+<script>
+(() => {
+  const els = {
+    grid: document.getElementById('grid'),
+    tiles: document.getElementById('tiles'),
+    maxRes: document.getElementById('maxRes'),
+    time: document.getElementById('time'),
+    hits: document.getElementById('hits'),
+    miss: document.getElementById('miss'),
+    newBtn: document.getElementById('new'),
+    resetBtn: document.getElementById('reset'),
+    msg: document.getElementById('message'),
+  };
+
+  let state = {
+    deck: [],
+    revealed: [],
+    matchedKeys: new Set(),
+    hits: 0,
+    miss: 0,
+    timerId: null,
+    startTs: null,
+    playing: false,
+    lock: false,
+    pairsNeeded: 0,
+  };
+
+  function mmss(ms){
+    const s = Math.floor(ms/1000);
+    const m = Math.floor(s/60);
+    const r = s % 60;
+    return String(m).padStart(2,'0')+':'+String(r).padStart(2,'0');
+  }
+
+  function startTimer(){
+    if (state.timerId) return;
+    state.startTs = Date.now();
+    els.time.textContent = '00:00';
+    state.timerId = setInterval(()=>{
+      els.time.textContent = mmss(Date.now()-state.startTs);
+    }, 200);
+  }
+  function stopTimer(){
+    if (state.timerId){ clearInterval(state.timerId); state.timerId = null; }
+  }
+
+  function shuffle(a){ for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } return a; }
+  const randInt = (min,max)=> Math.floor(Math.random()*(max-min+1))+min;
+
+  function generateDeck(pairCount, maxR){
+    // Necessitem pareCount resultats únics amb suma ∈ [2..maxR]
+    const possibleSums = [];
+    for(let s=2; s<=maxR; s++) possibleSums.push(s);
+    if (pairCount > possibleSums.length){
+      throw new Error(`Resultat màxim massa baix. Necessites com a mínim ${pairCount+1}.`);
+    }
+    shuffle(possibleSums);
+    const chosen = possibleSums.slice(0, pairCount); // resultats únics
+    const deck = [];
+    let id=0;
+    for(const sum of chosen){
+      const a = randInt(1, sum-1);
+      const b = sum - a;
+      deck.push(
+        { id:id++, key:sum, type:'sum', label:`${a} + ${b}` },
+        { id:id++, key:sum, type:'res', label:String(sum) }
+      );
+    }
+    return shuffle(deck);
+  }
+
+  function render(){
+    els.grid.innerHTML = '';
+    state.deck.forEach(card=>{
+      const div = document.createElement('button');
+      div.className = 'card';
+      div.setAttribute('aria-label', 'carta');
+      div.dataset.id = card.id;
+      div.innerHTML = `
+        <div class="face front">${card.label}</div>
+        <div class="face back">?</div>
+      `;
+      div.addEventListener('click', ()=> onFlip(card.id));
+      els.grid.appendChild(div);
+    });
+  }
+
+  function setMessage(text, isError=false){
+    els.msg.textContent = text || '';
+    els.msg.className = 'msg' + (isError ? ' error' : '');
+  }
+
+  function setStats(){
+    els.hits.textContent = state.hits;
+    els.miss.textContent = state.miss;
+  }
+
+  function updateCardClasses(){
+    const map = new Map(state.deck.map(c=>[c.id, c]));
+    [...els.grid.children].forEach(btn=>{
+      const id = Number(btn.dataset.id);
+      const card = map.get(id);
+      btn.classList.toggle('revealed', state.revealed.includes(id) || state.matchedKeys.has(card.key));
+      btn.classList.toggle('matched', state.matchedKeys.has(card.key));
+    });
+  }
+
+  function finishIfDone(){
+    if (state.matchedKeys.size === state.pairsNeeded){
+      stopTimer();
+      setMessage(`🎉 Partida acabada en ${els.time.textContent}. Encerts: ${state.hits}, Errors: ${state.miss}`);
+      state.playing = false;
+    }
+  }
+
+  function onFlip(id){
+    if (!state.playing || state.lock) return;
+    const card = state.deck.find(c=>c.id===id);
+    if (!card) return;
+
+    // ja resolta?
+    if (state.matchedKeys.has(card.key)) return;
+
+    // iniciar cronòmetre al primer moviment
+    if (!state.startTs) startTimer();
+
+    // ja revelada?
+    if (state.revealed.includes(id)) return;
+
+    state.revealed.push(id);
+    updateCardClasses();
+
+    if (state.revealed.length === 2){
+      state.lock = true;
+      const [id1,id2] = state.revealed;
+      const c1 = state.deck.find(c=>c.id===id1);
+      const c2 = state.deck.find(c=>c.id===id2);
+
+      if (c1.key === c2.key && c1.type !== c2.type){
+        // encert
+        state.hits++;
+        state.matchedKeys.add(c1.key);
+        setStats();
+        // breu feedback verd ja es veu via .matched
+        setTimeout(()=>{
+          state.revealed = [];
+          state.lock = false;
+          updateCardClasses();
+          finishIfDone();
+        }, 250);
+      } else {
+        // error
+        state.miss++;
+        setStats();
+        // feedback vermell momentani
+        markBad([id1,id2], 350).then(()=>{
+          state.revealed = [];
+          state.lock = false;
+          updateCardClasses();
+        });
+      }
+    }
+  }
+
+  function markBad(ids, delay=400){
+    const set = new Set(ids);
+    [...els.grid.children].forEach(btn=>{
+      const id = Number(btn.dataset.id);
+      if (set.has(id)) btn.classList.add('bad');
+    });
+    return new Promise(res=> setTimeout(()=>{
+      [...els.grid.children].forEach(btn=> btn.classList.remove('bad'));
+      res();
+    }, delay));
+  }
+
+  function newGame(){
+    stopTimer();
+    state = {
+      deck: [], revealed: [], matchedKeys:new Set(),
+      hits:0, miss:0, timerId:null, startTs:null, playing:true, lock:false, pairsNeeded:0
+    };
+    setStats(); els.time.textContent='00:00'; setMessage('');
+    const total = Number(els.tiles.value);
+    const pairs = Math.floor(total/2);
+    const maxR = Number(els.maxRes.value);
+
+    try{
+      state.deck = generateDeck(pairs, maxR);
+      state.pairsNeeded = pairs;
+      render();
+      // Si el grid no omple exactament, no passa res: CSS auto-fit ho organitza.
+    }catch(e){
+      setMessage('⚠️ ' + e.message, true);
+      state.playing = false;
+      els.grid.innerHTML = '';
+    }
+  }
+
+  function resetBoard(){
+    // mateix deck, però reinicia temps i estadístiques
+    if (!state.deck.length){ newGame(); return; }
+    stopTimer();
+    state.revealed = [];
+    state.matchedKeys = new Set();
+    state.hits = 0; state.miss = 0; state.startTs = null; state.playing = true; state.lock=false;
+    setStats(); els.time.textContent='00:00'; setMessage('');
+    render();
+  }
+
+  els.newBtn.addEventListener('click', newGame);
+  els.resetBtn.addEventListener('click', resetBoard);
+  // arrencar partida inicial
+  newGame();
+})();
+</script>
+</body>
+</html>
