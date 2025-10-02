@@ -6,9 +6,8 @@
   <title>Memory de Sumes</title>
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
 
-  <!-- Tailwind CDN -->
+  <!-- Tailwind CDN amb darkMode per classe -->
   <script>
-    // Configurar Tailwind perquè el mode fosc funcioni per classe 'dark'
     window.tailwind = { config: { darkMode: 'class' } };
   </script>
   <script src="https://cdn.tailwindcss.com"></script>
@@ -21,13 +20,13 @@
     .app-container{ flex:1 0 auto; min-height:100vh; width:100%; }
     @supports (height: 100dvh){ body,#root,.app-container{ min-height:100dvh; } }
 
-    /* Board de 2 columnes fixes (parelles per fila) i centrat */
+    /* Board: columns injectades des de JS per forçar horitzontalitat */
     .board{
       display:grid;
-      grid-template-columns: repeat(2, minmax(130px, 1fr));
-      gap: .75rem; /* 12px */
-      width: min(420px, 95vw);   /* ample compacte segons cartes */
-      margin-inline: auto;       /* centrat horitzontal */
+      gap:.75rem;
+      margin-inline:auto;   /* centrat */
+      align-content:start;
+      width: min(95vw, 1400px);
     }
 
     /* Flip 3D i feedback */
@@ -75,7 +74,10 @@
       <div class="grid gap-4 md:grid-cols-[1fr_auto_auto_auto] items-end">
         <div class="rounded-2xl p-4 bg-white/70 dark:bg-slate-800/60 border border-black/5 dark:border-white/10 shadow-sm">
           <label class="block text-xs uppercase tracking-wide opacity-70 mb-1">Descripció</label>
-          <p class="text-sm opacity-90">Torna les parelles <strong>Operació ↔ Resultat</strong>. Les parelles es col·loquen <strong>per files</strong> (2 columnes), amb ordre aleatori dins de cada fila.</p>
+          <p class="text-sm opacity-90">
+            Troba parelles <strong>Operació ↔ Resultat</strong>. Les cartes s’organitzen en
+            <strong>poques files i moltes columnes</strong> (més horitzontal). Barreja real: no quedaran totes les parelles juntes.
+          </p>
         </div>
 
         <div class="rounded-2xl p-4 bg-white/70 dark:bg-slate-800/60 border border-black/5 dark:border-white/10 shadow-sm">
@@ -94,7 +96,7 @@
           <label for="maxRes" class="block text-xs uppercase tracking-wide opacity-70 mb-1">Resultat màxim</label>
           <input id="maxRes" type="number" min="4" value="20"
                  class="w-36 rounded-xl px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700" />
-          <p class="text-xs mt-1 opacity-70">Assegura prou resultats únics (p. ex. ≥ nombre de parelles + 1).</p>
+          <p class="text-xs mt-1 opacity-70">Ha de ser ≥ parelles + 1 per assegurar resultats únics.</p>
         </div>
 
         <div class="flex gap-2">
@@ -127,7 +129,7 @@
       <!-- Missatges -->
       <p id="message" class="mt-3 text-sm"></p>
 
-      <!-- Board (2 columnes, parelles per fila i centrat) -->
+      <!-- Board -->
       <main id="grid" class="board mt-6"></main>
     </div>
 
@@ -139,10 +141,10 @@
   </div>
 
   <script>
-    // ===== Dark mode toggle amb preferència guardada (classe 'dark' a <html>)
+    // ===== Dark mode (classe 'dark' a <html>, preferència guardada)
     (function initTheme(){
       const rootEl = document.documentElement;
-      const saved = localStorage.getItem('theme');           // 'dark' | 'light' | null
+      const saved = localStorage.getItem('theme');
       const preferDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
       if ((saved === 'dark') || (!saved && preferDark)) rootEl.classList.add('dark');
       document.getElementById('toggleDark').addEventListener('click', () => {
@@ -166,9 +168,9 @@
 
     // ===== Estat
     let state = {
-      deck: [],           // cartes lineals [pair1cardA, pair1cardB, pair2cardA, pair2cardB, ...]
-      revealed: [],       // ids revelats (no resolts)
-      matchedKeys: new Set(),  // claus (suma) ja encertades
+      deck: [],
+      revealed: [],
+      matchedKeys: new Set(),
       hits: 0,
       miss: 0,
       timerId: null,
@@ -176,6 +178,8 @@
       playing: false,
       lock: false,
       pairsNeeded: 0,
+      cols: 0,   // columnes actuals del grid
+      rows: 0
     };
 
     // ===== Utils
@@ -195,12 +199,14 @@
     function shuffle(a){ for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } return a; }
     const randInt = (min,max)=> Math.floor(Math.random()*(max-min+1))+min;
 
-    // ===== Generació amb parelles per fila
-    // 1) triem 'pairCount' resultats únics
-    // 2) fem una parella [operació, resultat] per a cadascun
-    // 3) barregem les files (ordre de parelles), però mantenim les dues cartes contigües
-    // 4) dins de cada fila, aleatoritzem l'ordre esquerra/dreta
-    function generatePairedRowsDeck(pairCount, maxR){
+    // Decideix files per a una disposició més horitzontal
+    function pickRows(total){
+      if (total <= 12) return 2;  // 10,12 → 2 files
+      return 3;                   // 16,18,20 → 3 files
+    }
+
+    // Genera parelles (sums únics) i crea el deck barrejant
+    function makePairs(pairCount, maxR){
       const possibleSums = [];
       for(let s=2; s<=maxR; s++) possibleSums.push(s);
       if (pairCount > possibleSums.length){
@@ -210,24 +216,69 @@
       const chosen = possibleSums.slice(0, pairCount);
 
       let nextId = 0;
-      const rows = chosen.map(sum => {
+      const pairs = chosen.map(sum => {
         const a = randInt(1, sum-1);
         const b = sum - a;
         const cardSum = { id: nextId++, key: sum, type:'sum', label: `${a} + ${b}` };
         const cardRes = { id: nextId++, key: sum, type:'res', label: String(sum) };
-        // Aleatoritza ordre dins la fila
-        return Math.random() < 0.5 ? [cardSum, cardRes] : [cardRes, cardSum];
+        return [cardSum, cardRes];
       });
-
-      // barregem les files
-      shuffle(rows);
-
-      // aplanem en un array lineal [c0,c1,c2,c3,...]
-      return rows.flat();
+      return pairs;
     }
 
+    // Calcula quantes parelles han quedat adjacents horitzontalment (mateixa fila, columna contigua)
+    function countAdjacentPairs(deck, cols){
+      // posició de cada id al grid (row-major)
+      const pos = new Map();
+      deck.forEach((c, idx) => pos.set(c.id, { r: Math.floor(idx/cols), c: idx % cols, key: c.key, type: c.type }));
+      // recorre per claus i mira on són els dos elements
+      const seen = new Set();
+      let adj = 0;
+      for (const {key} of deck){
+        if (seen.has(key)) continue;
+        const p = [...pos.values()].filter(v => v.key === key);
+        if (p.length === 2){
+          const sameRow = p[0].r === p[1].r;
+          const sideBySide = sameRow && Math.abs(p[0].c - p[1].c) === 1;
+          if (sideBySide) adj++;
+        }
+        seen.add(key);
+      }
+      return adj;
+    }
+
+    // Construeix el deck final barrejant i assegurant que NO quedin TOTES les parelles de costat
+    function buildDeck(total, maxR){
+      const pairs = Math.floor(total/2);
+      const rows = pickRows(total);
+      const cols = Math.ceil(total / rows);
+
+      // Genera totes les cartes
+      const pairList = makePairs(pairs, maxR);
+
+      // Barregem cartes de totes les parelles (operacions i resultats junts)
+      let deck;
+      do {
+        // flatten i barreja
+        deck = shuffle(pairList.flat());
+        // si falta alguna carta (no hauria), reaplica
+        if (deck.length !== total) deck = deck.slice(0, total);
+        // comprova adjacència horitzontal
+        const adj = countAdjacentPairs(deck, cols);
+        // si ADJ == totes les parelles, reintenta (evitem "totes de costat")
+        if (adj === pairs) continue;
+        break;
+      } while(true);
+
+      return { deck, rows, cols };
+    }
+
+    // Render
     function render(){
-      els.grid.innerHTML = '';
+      const g = els.grid;
+      g.innerHTML = '';
+      g.style.gridTemplateColumns = `repeat(${state.cols}, minmax(120px, 1fr))`;
+
       state.deck.forEach(card=>{
         const btn = document.createElement('button');
         btn.type = 'button';
@@ -260,8 +311,9 @@
         btn.appendChild(inner);
 
         btn.addEventListener('click', ()=> onFlip(card.id));
-        els.grid.appendChild(btn);
+        g.appendChild(btn);
       });
+
       updateCardClasses();
     }
 
@@ -330,15 +382,19 @@
 
     function newGame(){
       stopTimer();
-      state = { deck:[], revealed:[], matchedKeys:new Set(), hits:0, miss:0, timerId:null, startTs:null, playing:true, lock:false, pairsNeeded:0 };
+      state = { ...state, deck:[], revealed:[], matchedKeys:new Set(), hits:0, miss:0, timerId:null, startTs:null, playing:true, lock:false, pairsNeeded:0 };
+
       setStats(); els.time.textContent='00:00'; setMessage('');
       const total = Number(els.tiles.value);
       const pairs = Math.floor(total/2);
       const maxR = Number(els.maxRes.value);
 
       try{
-        state.deck = generatePairedRowsDeck(pairs, maxR); // <-- parelles agrupades per fila
+        const { deck, rows, cols } = buildDeck(total, maxR);
+        state.deck = deck;
         state.pairsNeeded = pairs;
+        state.rows = rows;
+        state.cols = cols;
         render();
       }catch(e){
         setMessage('⚠️ ' + e.message, true);
