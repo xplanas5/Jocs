@@ -59,7 +59,7 @@
     .cell.on { background:#111827; }
     .cell.hint { outline: 2px dashed #94a3b8; }
 
-    /* ===== Pentomino: canvas high-DPI nítid */
+    /* ===== Canvas nítid en pantalles denses */
     canvas.pixel { image-rendering: pixelated; }
   </style>
 </head>
@@ -176,7 +176,7 @@
       if ((saved === 'dark') || (!saved && preferDark)) rootEl.classList.add('dark');
     })();
 
-    /* ========= Helpers visuals ========= */
+    /* ========= Helpers i referències UI ========= */
     const el = s => document.querySelector(s);
     const $hub = el('#hub');
     const $scene = el('#scene');
@@ -192,24 +192,10 @@
     const sample=arr=>arr[Math.floor(Math.random()*arr.length)];
     const avg=arr=>arr.reduce((a,b)=>a+b,0)/arr.length;
 
-    /* ========= Navegació ========= */
-    document.querySelectorAll('[data-route]').forEach(b=>{
-      b.addEventListener('click', ()=> showHub());
-    });
-    document.querySelectorAll('[data-start]').forEach(b=>{
-      b.addEventListener('click', ()=> startGame(b.dataset.start));
-    });
-    el('#btnResetGlobal').onclick = ()=> {
-      if(state.game?.reset) state.game.reset();
-      setScore(0);
-      setTime(state.game?.timeLimit ?? null);
-      if(state.game?.timeLimit) startTimer();
-    };
-
+    /* ========= Navegació, estat i temporitzador ========= */
     function showHub(){ clearTimer(); $scene.classList.add('hidden'); $hub.classList.remove('hidden'); $msg.textContent=''; }
     function showScene(){ $hub.classList.add('hidden'); $scene.classList.remove('hidden'); }
 
-    /* ========= Estat i temporitzador ========= */
     let state = { score:0, timeLeft:null, timerId:null, status:'ready', game:null };
     function setScore(v){ state.score=v; $uiScore.textContent=v; }
     function setTime(v){ state.timeLeft=v; $uiTime.textContent=(v==null?'—':v); }
@@ -237,7 +223,7 @@
       if(G.timeLimit) startTimer();
       $msg.textContent = G.hint ?? '';
     }
-    el('#btnNext').onclick = ()=> { if(state.game?.next) state.game.next(); };
+    el('#btnNext')?.addEventListener('click', ()=> { if(state.game?.next) state.game.next(); });
 
     /* ========= Nivells ========= */
     const LEVELS = {
@@ -261,15 +247,13 @@
         {rows:10, cols:10, start:[2,2], heading:'N', targets:4, hints:['N2','E3','S1','E2','N3','W1']},
         {rows:12, cols:12, start:[5,1], heading:'E', targets:5, hints:['E4','N2','E1','S3','W2','N1','E3']}
       ],
-      // Pentomino: oferim 5 peces (per simplicitat) en un tauler 5x5 (nivell bàsic)
       pentomino: [
         { rows:5, cols:5, pieces:['F','L','P','T','Z'] },
         { rows:6, cols:6, pieces:['F','L','P','T','Z','U','V'] },
       ],
-      // Nets: tres patrons de cub (un vàlid, dos distractors)
       nets: [
         { kind:'cube', id:'T-valid', layout:[[0,1,0],[1,1,1],[0,1,0]], valid:true, label:'Creu (vàlid)' },
-        { kind:'cube', id:'strip-5-1', layout:[[1,1,1,1,1,1]], valid:false, label:'Tira 6 (no vàlid)' },
+        { kind:'cube', id:'strip-5-1', layout:[[1,1,1,1,1,1]], valid:false, label:'Tira de 6 (no vàlid)' },
         { kind:'cube', id:'T-bad', layout:[[0,1,0],[1,1,1],[0,0,1]], valid:false, label:'T incomplet' }
       ]
     };
@@ -416,11 +400,7 @@
       }
     };
 
-    /* ========= Joc 4: Pentomino Packing (simplificat) =========
-       - Tauler de cel·les; peces compostes per coordenades locals.
-       - Drag & drop amb ratolí/tàctil. R: rotar 90°, F: reflectir.
-       - Objectiu: cobrir totes les cel·les marcades (board sense buits).
-    */
+    /* ========= Joc 4: Pentomino Packing (simplificat) ========= */
     const Pentomino = {
       name:'Pentomino Packing', container:null, canvas:null, ctx:null, levelIdx:0,
       cell:32, rows:0, cols:0, board=[], pieces=[], activeIdx:null, dragOff:[0,0],
@@ -463,7 +443,7 @@
         this.rows=L.rows; this.cols=L.cols;
         this.canvas.width=this.cols*this.cell; this.canvas.height=this.rows*this.cell;
         this.board = Array.from({length:this.rows},()=>Array(this.cols).fill(-1));
-        // Defineix peces bàsiques per lletres (coords locals)
+        // Defineix peces bàsiques (coords locals)
         const base = {
           F:[[0,1],[1,0],[1,1],[1,2],[2,2]],
           L:[[0,0],[1,0],[2,0],[3,0],[3,1]],
@@ -474,7 +454,7 @@
           V:[[0,0],[1,0],[2,0],[2,1],[2,2]]
         };
         const pick = L.pieces.map(k=>({ id:k, cells:base[k].map(p=>([...p])), pos:{x:this.cols+1,y:1}, rot:0, flip:false, color:this.randColor() }));
-        // col·loca al pallet virtual (dreta del canvas)
+        // col·loca al pallet virtual (fora del canvas)
         let px=0, py=0;
         pick.forEach(p=>{ p.pos={x:this.cols+1 + (px%2)*3, y:1 + Math.floor(py/2)*4}; px++; py++; });
         this.pieces=pick; this.renderPallet(); this.draw();
@@ -495,8 +475,7 @@
       },
       rotate(i){
         const p=this.pieces[i];
-        p.cells = p.cells.map(([r,c])=>[c, -r]); // rotació 90° (coords locals)
-        // normalitza a origen
+        p.cells = p.cells.map(([r,c])=>[c, -r]);
         const minr=Math.min(...p.cells.map(q=>q[0])), minc=Math.min(...p.cells.map(q=>q[1]));
         p.cells=p.cells.map(([r,c])=>[r-minr,c-minc]);
       },
@@ -508,12 +487,10 @@
       pointerDown(e){
         const {offsetX:x, offsetY:y}=this.eventXY(e);
         const gc=this.toGrid(x,y);
-        // mira si fa clic sobre una peça ja al tauler
         this.activeIdx = this.hitPiece(gc.r, gc.c);
         if(this.activeIdx!=null){
           this.dragOff=[gc.c - this.pieces[this.activeIdx].pos.x, gc.r - this.pieces[this.activeIdx].pos.y];
         } else {
-          // si clica buit, selecciona la primera peça del pallet
           this.activeIdx = this.pieces.findIndex(p=>p.pos.x>=this.cols+1);
           this.dragOff=[0,0];
         }
@@ -527,7 +504,6 @@
         this.draw();
       },
       pointerUp(){ if(this.activeIdx==null) return;
-        // Snap dins del tauler si és vàlid
         const p=this.pieces[this.activeIdx];
         if(this.canPlace(p)){ this.place(p,this.activeIdx); this.onScore(2); pulse(this.canvas); }
         this.activeIdx=null; this.draw();
@@ -544,7 +520,6 @@
         return null;
       },
       canPlace(p){
-        // comprova que totes cel·les cauen dins del tauler i no solapen
         for(const [r,c] of p.cells){
           const R=p.pos.y+r, C=p.pos.x+c;
           if(R<0||C<0||R>=this.rows||C>=this.cols) return false;
@@ -553,22 +528,17 @@
         return true;
       },
       place(p, idx){
-        // escriu al board i envia peça “fixada” (la traiem del pallet virtual)
         for(const [r,c] of p.cells){ this.board[p.pos.y+r][p.pos.x+c]=idx; }
-        // desplaça fora de pallet si estava fora
         if(p.pos.x>=this.cols) p.pos.x = Math.max(0, Math.min(this.cols-1, p.pos.x));
       },
       isComplete(){ for(let r=0;r<this.rows;r++) for(let c=0;c<this.cols;c++) if(this.board[r][c]===-1) return false; return true; },
       draw(){
         const g=this.ctx, cs=this.cell; g.clearRect(0,0,this.canvas.width,this.canvas.height);
-        // graella
         g.strokeStyle='#e5e7eb';
         for(let r=0;r<this.rows;r++) for(let c=0;c<this.cols;c++) g.strokeRect(c*cs,r*cs,cs,cs);
-        // peces “fixades”
         for(let r=0;r<this.rows;r++) for(let c=0;c<this.cols;c++){
           const idx=this.board[r][c]; if(idx>=0){ g.fillStyle=this.pieces[idx].color; g.fillRect(c*cs+1,r*cs+1,cs-2,cs-2); }
         }
-        // peces mòbils (incloses les del pallet, que cauen fora de canvas i no es veuen)
         this.pieces.forEach((p,i)=>{
           g.fillStyle=p.color;
           p.cells.forEach(([rr,cc])=>{
@@ -579,11 +549,7 @@
       }
     };
 
-    /* ========= Joc 5: Paper Nets (cube nets bàsic) =========
-       - Mostra layout 2D (matriu de 0/1).
-       - Slider d’angle de plegat per visualitzar “alçat”.
-       - Botó validar: diu si és un net vàlid del cub (segons nivell).
-    */
+    /* ========= Joc 5: Paper Nets (cube nets bàsic) ========= */
     const Nets = {
       name:'Paper Nets', container:null, canvas:null, ctx:null, levelIdx:0, angle:0,
       hint:'Mou l’angle i observa el plegat. Prem “Valida” per comprovar.',
@@ -622,19 +588,15 @@
         const L=LEVELS.nets[this.levelIdx]; const m=L.layout; const nR=m.length, nC=Math.max(...m.map(r=>r.length));
         const size=Math.min((W-80)/nC,(H-80)/nR);
         const ox=(W-nC*size)/2, oy=(H-nR*size)/2;
-        // Dibuix 2D del net
         ctx.strokeStyle='#94a3b8'; ctx.lineWidth=1.5;
         for(let r=0;r<nR;r++) for(let c=0;c<m[r].length;c++){
           if(m[r][c]){ ctx.strokeRect(ox+c*size, oy+r*size, size, size); ctx.fillStyle='rgba(14,165,233,0.08)'; ctx.fillRect(ox+c*size, oy+r*size, size, size); }
         }
-        // Pseudo 3D: aixeca la “cara central” i plega braços segons angle
-        const ang=this.angle*Math.PI/180, lift=Math.sin(ang)*size, shift=Math.cos(ang)*size;
-        // troba centre (cara amb més veïns): aproximem a la primera cel·la 1
+        const ang=this.angle*Math.PI/180, lift=Math.sin(ang)*size;
+        // Cara central “alçada”
         let cr=0, cc=0; outer: for(let r=0;r<nR;r++) for(let c=0;c<nC;c++) if(m[r][c]){ cr=r; cc=c; break outer; }
-        // cara central
         ctx.fillStyle='rgba(16,185,129,0.15)'; ctx.fillRect(ox+cc*size, oy+cr*size-lift, size, size);
         ctx.strokeStyle='#10b981'; ctx.strokeRect(ox+cc*size, oy+cr*size-lift, size, size);
-        // etiqueta
         ctx.fillStyle='#334155'; ctx.font='12px system-ui'; ctx.fillText(this.label||'', 10, H-10);
       }
     };
@@ -647,6 +609,58 @@
       pentomino: Pentomino,
       nets: Nets
     };
+  </script>
+
+  <!-- ===== Boot segur i enllaç de botons (DESPRÉS de definir GAMES) ===== -->
+  <script>
+  (function boot() {
+    function showError(e){
+      console.error(e);
+      const box = document.createElement('div');
+      box.style.cssText = 'position:fixed;inset:auto 1rem 1rem 1rem;padding:12px;border-radius:12px;background:#fee2e2;color:#7f1d1d;border:1px solid #fecaca;font:12px system-ui;z-index:9999;';
+      box.textContent = 'Hi ha hagut un error de JavaScript. Revisa la consola (F12) per veure’n el detall.';
+      document.body.appendChild(box);
+      setTimeout(()=> box.remove(), 6000);
+    }
+
+    function wire(){
+      try {
+        // Navegació a Inici
+        document.querySelectorAll('[data-route]').forEach(b=>{
+          b.onclick = () => window.showHub ? showHub() : null;
+        });
+
+        // Engegar jocs
+        document.querySelectorAll('[data-start]').forEach(b=>{
+          b.onclick = () => {
+            const id = b.dataset.start;
+            if (!window.GAMES && !(typeof GAMES === 'object')) throw new Error('GAMES no definit.');
+            if (!GAMES[id]) throw new Error(`Joc "${id}" no registrat a GAMES.`);
+            window.startGame ? startGame(id) : null;
+          };
+        });
+
+        const reset = document.getElementById('btnResetGlobal');
+        if (reset) {
+          reset.onclick = () => {
+            if (window.state?.game?.reset) state.game.reset();
+            if (window.setScore) setScore(0);
+            if (window.setTime) setTime(state.game?.timeLimit ?? null);
+          };
+        }
+
+        // Exposa per si cal des de consola
+        window.startGame = window.startGame || startGame;
+        window.showHub = window.showHub || showHub;
+      } catch (e) { showError(e); }
+    }
+
+    if (document.readyState === 'complete' || document.readyState === 'interactive') {
+      setTimeout(wire, 0);
+    } else {
+      document.addEventListener('DOMContentLoaded', wire);
+    }
+  })();
   </script>
 </body>
 </html>
