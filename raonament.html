@@ -152,14 +152,28 @@ el('#btnNext')?.addEventListener('click',()=>{ state.game?.next && state.game.ne
 
 /* ===== nivells ===== */
 const LEVELS={
-  rotation_rush:{ rounds:10, angles:[90,180,270], allowReflections:true,
-    // ← sense quadrats
+  rotation_rush:{
+    rounds:10, angles:[90,180,270], allowReflections:true,
+    /* Figures més complexes i asimètriques (cap quadrat ni triangle regular) */
     shapeset:[
-      [[0,0],[80,0],[40,60]],                                  // triangle
-      [[0,0],[70,0],[90,40],[20,60]],                          // quadrilàter irregular
-      [[0,0],[90,0],[90,30],[0,60]],                           // trapezi
-      [[0,0],[60,0],[80,30],[40,60],[0,40]]                    // pentàgon
-    ] },
+      // Fletxa desplaçada
+      [[0,25],[48,25],[48,10],[100,40],[48,70],[48,55],[0,55]],
+      // Bota
+      [[0,60],[60,60],[60,40],[38,40],[38,6],[20,6],[20,40],[0,40]],
+      // Casa amb xemeneia a la dreta
+      [[0,60],[0,20],[22,0],[62,0],[82,20],[82,60],[52,60],[52,42],[30,42],[30,60]],
+      // Llamp
+      [[0,22],[56,22],[45,42],[74,42],[20,98],[32,62],[0,62]],
+      // Estendard amb escotadura
+      [[0,0],[86,0],[86,32],[64,20],[86,44],[86,72],[0,72]],
+      // Ganxo / U obert
+      [[0,0],[72,0],[72,20],[22,20],[22,82],[0,82]],
+      // Clau estilitzada
+      [[0,30],[52,30],[52,10],[82,10],[82,30],[62,30],[62,52],[0,52]],
+      // Rombe tort / cometa irregular
+      [[10,35],[55,0],[95,35],[68,42],[90,78],[48,60],[12,75],[28,44]]
+    ]
+  },
   symmetry_painter:[
     {rows:12,cols:16,target:(r,c)=>(r>2&&r<9&&c<4&&(r+c)%2===0)},
     {rows:14,cols:20,target:(r,c)=>((r>3&&r<10&&c<6)&&(r%3===0||c%2===0))},
@@ -181,7 +195,7 @@ const LEVELS={
   ]
 };
 
-/* ===== joc 1: Rotation Rush (sense quadrats, resposta sempre rotada) ===== */
+/* ===== joc 1: Rotation Rush (resposta sempre rotada) ===== */
 const RotationRush = {
   name:'Rotation Rush', timeLimit:20,
   container:null, baseCtx:null, choicesWrap:null,
@@ -226,6 +240,7 @@ const RotationRush = {
       let angle, mirror=false;
       if(ok){ angle=this.correctAngle; mirror=false; }
       else{
+        // Distractors variats: angles diferents i, de vegades, mirall
         do{ angle=sample(angles); mirror=Math.random()<0.5; }
         while(used.has(angle+'|'+(mirror?'m':'no')));
         used.add(angle+'|'+(mirror?'m':'no'));
