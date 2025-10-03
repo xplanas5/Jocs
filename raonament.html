@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-<title>Raonament Espacial · Pack de Jocs (Lite)</title>
+<title>Raonament Espacial · Pack (Lite fix)</title>
 <style>
   :root{
     --bg:#f6f7fb; --fg:#1f2937; --muted:#6b7280;
@@ -11,7 +11,7 @@
   }
   *{box-sizing:border-box}
   html,body{margin:0;height:100%}
-  body{min-height:100vh;background:var(--bg);color:var(--fg);font:16px/1.45 system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial, "Noto Sans", "Apple Color Emoji","Segoe UI Emoji";}
+  body{min-height:100vh;background:var(--bg);color:var(--fg);font:16px/1.45 system-ui,-apple-system,Segoe UI,Roboto,Arial}
   header{position:sticky;top:0;background:#fff;border-bottom:1px solid var(--line);}
   .wrap{max-width:1100px;margin:0 auto;padding:16px;}
   h1{margin:0;font-size:22px}
@@ -35,7 +35,7 @@
   .cell{width:22px;height:22px;background:#fff}
   .cell.on{background:#111827}
   .cell.hint{outline:2px dashed #9ca3af}
-  /* D-pad senzill */
+  /* D-pad */
   .dpad{display:grid;grid-template-columns:50px 50px 50px;grid-template-rows:50px 50px 50px;gap:6px;justify-content:center}
   .dpad .btn{height:50px}
   footer{color:#6b7280;text-align:center;font-size:12px;padding:16px}
@@ -57,7 +57,7 @@
   <section id="hub" class="grid hub">
     <article class="card">
       <h2>Rotation Rush</h2>
-      <p class="muted">Tria la rotació correcta (90°, 180°, 270°) d’una figura asimètrica.</p>
+      <p class="muted">Tria la rotació correcta d’una figura; 3 opcions tenen canvis mínims.</p>
       <button class="btn primary" data-start="rotation_rush">Jugar</button>
     </article>
 
@@ -69,13 +69,13 @@
 
     <article class="card">
       <h2>Map Hunt</h2>
-      <p class="muted">Mou-te pel mapa (llisca o D-pad) i caça fites.</p>
+      <p class="muted">Mou-te pel mapa (llisca o D-pad) i arriba a les vores.</p>
       <button class="btn primary" data-start="map_hunt">Jugar</button>
     </article>
 
     <article class="card">
       <h2>Pentomino Packing</h2>
-      <p class="muted">Toca una peça, toca el tauler per deixar-la i arrossega.</p>
+      <p class="muted">Toca una peça, deixa-la al tauler i arrossega.</p>
       <button class="btn primary" data-start="pentomino">Jugar</button>
     </article>
 
@@ -115,6 +115,7 @@
   /* ---------- Utils DOM ---------- */
   const $ = (sel,root=document)=>root.querySelector(sel);
   const $$ = (sel,root=document)=>Array.from(root.querySelectorAll(sel));
+  const clamp=(v,min,max)=>Math.max(min,Math.min(max,v));
 
   /* ---------- Estat app ---------- */
   const hub = $('#hub');
@@ -159,9 +160,7 @@
   }
 
   function wire(){
-    // Botons HUB (click clàssic, robust a mòbil i desktop)
     $$('[data-start]').forEach(b => b.addEventListener('click', ()=> startGame(b.dataset.start)));
-    // Header i escena
     $('#btnHome')?.addEventListener('click', showHub);
     $('#btnBack')?.addEventListener('click', showHub);
     $('#btnResetGlobal')?.addEventListener('click', ()=>{
@@ -169,17 +168,43 @@
     });
     $('#btnNext')?.addEventListener('click', ()=>{ try{ state.game?.next && state.game.next(); }catch(e){ console.error(e); } });
   }
-
   document.addEventListener('DOMContentLoaded', wire);
 
-  /* ==========================================================
-     JOC 1 — Rotation Rush (figures clarament asimètriques)
-     ========================================================== */
+  /* ===============================
+     UTILITATS GEOMÈTRIQUES
+     =============================== */
+  const rnd = (min,max)=> Math.random()*(max-min)+min;
+  const avg = arr => arr.reduce((a,b)=>a+b,0)/arr.length;
+  function clone(poly){ return poly.map(([x,y])=>[x,y]); }
+  function centroid(poly){ const cx=avg(poly.map(p=>p[0])), cy=avg(poly.map(p=>p[1])); return [cx,cy]; }
+  function normalize(poly){ const [cx,cy]=centroid(poly); return poly.map(([x,y])=>[x-cx,y-cy]); }
+  function rotate(poly,deg){ const a=deg*Math.PI/180, s=Math.sin(a), c=Math.cos(a); return poly.map(([x,y])=>[x*c-y*s, x*s+y*c]); }
+  function translate(poly,dx,dy){ return poly.map(([x,y])=>[x+dx,y+dy]); }
+  function scale(poly,sx,sy){ return poly.map(([x,y])=>[x*sx,y*sy]); }
+  function shearX(poly,k){ return poly.map(([x,y])=>[x+k*y, y]); }
+  function shearY(poly,k){ return poly.map(([x,y])=>[x, y+k*x]); }
+  function nudgeVertex(poly,mag=6){
+    const i=Math.floor(Math.random()*poly.length);
+    return poly.map(([x,y],idx)=> idx===i? [x+rnd(-mag,mag), y+rnd(-mag,mag)] : [x,y]);
+  }
+  function drawPoly(ctx,poly,{x=0,y=0,stroke='#111827'}={}){
+    ctx.save();
+    ctx.translate(x,y);
+    ctx.beginPath();
+    ctx.moveTo(poly[0][0], poly[0][1]);
+    for(let i=1;i<poly.length;i++) ctx.lineTo(poly[i][0], poly[i][1]);
+    ctx.closePath();
+    ctx.lineWidth=2; ctx.strokeStyle=stroke; ctx.stroke();
+    ctx.restore();
+  }
+
+  /* ===============================
+     JOC 1 — Rotation Rush (3 distractors amb canvis mínims)
+     =============================== */
   const RotationRush = {
     name:'Rotation Rush', timeLimit:20,
     round:0, basePoly:null, choicesWrap:null, baseCtx:null, correctIndex:0, correctAngle:90,
     shapeset:[
-      // Totes asimètriques (sense simetria d’ordre 2/4)
       [[0,0],[62,6],[52,22],[90,34],[50,54],[74,70],[16,64],[10,42],[28,34],[6,18]],
       [[0,0],[70,0],[70,16],[36,16],[36,56],[14,56],[14,18],[2,18]],
       [[8,20],[58,0],[96,26],[68,36],[88,74],[44,56],[14,70],[30,40]],
@@ -187,14 +212,15 @@
       [[0,18],[54,18],[72,6],[88,20],[40,32],[82,44],[62,60],[0,60],[10,40]],
       [[0,8],[64,8],[50,22],[78,22],[28,58],[44,44],[0,44]]
     ],
+    hint:'Toca l’opció que és exactament la rotació (sense cap deformació).',
     init(root,onScore){
       this.onScore=onScore; this.round=0;
       const wrap = document.createElement('div');
       wrap.className='grid'; wrap.style.gridTemplateColumns='1fr 1fr'; wrap.style.gap='10px';
       wrap.innerHTML = `
         <div>
-          <canvas id="rr-base" width="240" height="240"></canvas>
-          <div class="muted" style="margin-top:6px">Tria la rotació correcta (90°, 180°, 270°)</div>
+          <canvas id="rr-base" width="260" height="260"></canvas>
+          <div class="muted" style="margin-top:6px">Tria la rotació correcta (90°, 180° o 270°). Les altres 3 estan lleument alterades.</div>
         </div>
         <div><div id="rr-choices" class="grid" style="grid-template-columns:1fr 1fr; gap:8px"></div></div>`;
       root.appendChild(wrap);
@@ -206,48 +232,48 @@
     next(){
       setTime(this.timeLimit); startTimer();
       this.round++; if(this.round>10){ endGame('win'); return; }
-      this.basePoly = sample(this.shapeset);
-      this.baseCtx.clearRect(0,0,240,240);
-      drawPoly(this.baseCtx,this.basePoly,{x:120,y:120,rot:0});
 
-      this.choicesWrap.innerHTML='';
+      // Base (no rotada)
+      const raw = this.shapeset[Math.floor(Math.random()*this.shapeset.length)];
+      const base = normalize(raw);
+      this.basePoly = base;
+      this.baseCtx.clearRect(0,0,260,260);
+      drawPoly(this.baseCtx, translate(base,130,130), {stroke:'#111827'});
+
+      // Rotació objectiu
       const angles=[90,180,270];
-      this.correctAngle = sample(angles);
-      this.correctIndex = Math.floor(Math.random()*4);
+      this.correctAngle = angles[Math.floor(Math.random()*angles.length)];
+      const rotated = rotate(base, this.correctAngle);
 
-      const choicesAngles = new Set([this.correctAngle]);
-      while(choicesAngles.size<3) choicesAngles.add(sample(angles));
-      // si cal, afegeix una repetida amb petit desplaçament per no ser idèntiques
-      const list = [...choicesAngles];
-      while(list.length<4) list.push(sample(angles));
+      // Genera 3 distractors amb canvis mínims (manté la mateixa rotació)
+      const d1 = scale(rotated, rnd(0.9,0.95), rnd(1.03,1.07));          // lleu escala anisotròpica
+      const d2 = shearX(rotated, rnd(0.08,0.14));                         // shear suau
+      const d3 = nudgeVertex(rotated, 7);                                  // mou un vèrtex lleu
 
-      for(let i=0;i<4;i++){
+      const options = [
+        {poly: rotated, exact:true},
+        {poly: d1, exact:false},
+        {poly: d2, exact:false},
+        {poly: d3, exact:false}
+      ];
+
+      // barreja i pinta
+      for (let i=options.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [options[i],options[j]]=[options[j],options[i]]; }
+      this.choicesWrap.innerHTML='';
+      options.forEach(opt=>{
         const cv=document.createElement('canvas'); cv.width=120; cv.height=120;
         const ctx=cv.getContext('2d');
-        const angle = (i===this.correctIndex)? this.correctAngle : list[i%list.length];
-        const off = (i===this.correctIndex)? {dx:0,dy:0} : {dx:(Math.random()<.5?-5:5),dy:(Math.random()<.5?-5:5)};
-        drawPoly(ctx,this.basePoly,{x:60+off.dx,y:60+off.dy,rot:angle});
-        cv.addEventListener('click',()=> this.pick(i===this.correctIndex));
+        drawPoly(ctx, translate(opt.poly,60,60), {stroke:'#111827'});
+        cv.addEventListener('click',()=> this.pick(opt.exact));
         this.choicesWrap.appendChild(cv);
-      }
+      });
     },
     pick(ok){ if(ok){ this.onScore(10); this.next(); } else { this.onScore(-2); } }
   };
 
-  /* dibuixa polígon (centre normalitzat + rotació) */
-  function sample(arr){ return arr[Math.floor(Math.random()*arr.length)]; }
-  function avg(arr){ return arr.reduce((a,b)=>a+b,0)/arr.length; }
-  function drawPoly(ctx,poly,{x=0,y=0,rot=0}={}){
-    ctx.save(); ctx.translate(x,y); ctx.rotate(rot*Math.PI/180);
-    const cx=avg(poly.map(p=>p[0])), cy=avg(poly.map(p=>p[1]));
-    ctx.beginPath(); ctx.moveTo(poly[0][0]-cx, poly[0][1]-cy);
-    for(let i=1;i<poly.length;i++) ctx.lineTo(poly[i][0]-cx, poly[i][1]-cy);
-    ctx.closePath(); ctx.lineWidth=2; ctx.strokeStyle='#111827'; ctx.stroke(); ctx.restore();
-  }
-
-  /* ==========================================================
+  /* ===============================
      JOC 2 — Symmetry Painter
-     ========================================================== */
+     =============================== */
   const SymmetryPainter = {
     name:'Symmetry Painter', timeLimit:null,
     levelIndex:0, rows:0, cols:0, grid:[], target:[],
@@ -290,8 +316,9 @@
         d.addEventListener('touchmove',(e)=>{ e.preventDefault(); const t=e.changedTouches[0]; const el=document.elementFromPoint(t.clientX,t.clientY); if(el&&el.classList.contains('cell')) el.dispatchEvent(new Event('mouseover')); },{passive:false});
         g.appendChild(d);
       }
-      document.addEventListener('mouseup',()=> painting=false, {once:true});
-      document.addEventListener('touchend',()=> painting=false, {once:true});
+      const up=()=>painting=false;
+      document.addEventListener('mouseup',up,{once:true});
+      document.addEventListener('touchend',up,{once:true});
       this.check();
     },
     check(){
@@ -302,9 +329,9 @@
     }
   };
 
-  /* ==========================================================
-     JOC 3 — Map Hunt (D-pad + swipe)
-     ========================================================== */
+  /* ===============================
+     JOC 3 — Map Hunt (arreglat)
+     =============================== */
   const MapHunt = {
     name:'Map Hunt', timeLimit:null,
     idx:0, rows:0, cols:0, cell:34, player:{r:0,c:0}, targets:0,
@@ -313,33 +340,43 @@
       {rows:10,cols:10,start:[2,2],targets:4},
       {rows:12,cols:12,start:[5,1],targets:5}
     ],
+    hint:'Fes servir el D-pad o llisca sobre el mapa.',
     init(root,onScore){
       this.onScore=onScore; this.idx=0;
       const wrap=document.createElement('div');
-      wrap.innerHTML=`<div style="display:grid;grid-template-columns:1fr 170px;gap:10px;align-items:start">
-        <canvas id="mh" width="340" height="340"></canvas>
+      wrap.innerHTML=`<div style="display:grid;grid-template-columns:minmax(260px,1fr) 170px;gap:10px;align-items:start">
+        <canvas id="mh" width="340" height="368" aria-label="Mapa"></canvas>
         <div>
           <div class="dpad">
-            <div></div><button class="btn" data-dir="N">▲</button><div></div>
-            <button class="btn" data-dir="W">◀</button><div class="btn" disabled>·</div><button class="btn" data-dir="E">▶</button>
-            <div></div><button class="btn" data-dir="S">▼</button><div></div>
+            <div></div><button class="btn" data-dir="N" aria-label="Amunt">▲</button><div></div>
+            <button class="btn" data-dir="W" aria-label="Esquerra">◀</button><div class="btn" disabled>·</div><button class="btn" data-dir="E" aria-label="Dreta">▶</button>
+            <div></div><button class="btn" data-dir="S" aria-label="Avall">▼</button><div></div>
           </div>
-          <p class="muted" style="margin-top:8px">Arriba a les vores per sumar fites.</p>
+          <p class="muted" style="margin-top:8px">Arriba a una vora per comptar una fita.</p>
         </div>
       </div>`;
       root.appendChild(wrap);
       this.cv = $('#mh', wrap); this.ctx=this.cv.getContext('2d');
-      $$('#'+wrap.id+' [data-dir]', wrap).forEach(()=>{}); // no-op (compat)
       $$('[data-dir]', wrap).forEach(b=> b.addEventListener('click',()=> this.moveBy(b.dataset.dir)));
-      // swipe
-      let sx=0,sy=0,down=false;
-      this.cv.addEventListener('pointerdown',e=>{down=true; sx=e.clientX; sy=e.clientY; this.cv.setPointerCapture(e.pointerId);});
-      this.cv.addEventListener('pointerup',e=>{
-        if(!down) return; down=false;
-        const dx=e.clientX-sx, dy=e.clientY-sy;
+
+      // Gest de lliscament — compat ampliada
+      let down=false, sx=0, sy=0;
+      const onDown = (x,y)=>{ down=true; sx=x; sy=y; };
+      const onUp = (x,y)=>{ if(!down) return; down=false;
+        const dx=x-sx, dy=y-sy;
         if(Math.abs(dx)<20 && Math.abs(dy)<20) return;
         if(Math.abs(dx)>Math.abs(dy)) this.moveBy(dx>0?'E':'W'); else this.moveBy(dy>0?'S':'N');
-      });
+      };
+      // Pointer (si existeix)
+      this.cv.addEventListener('pointerdown',e=>{ e.preventDefault(); onDown(e.clientX,e.clientY); this.cv.setPointerCapture(e.pointerId); },{passive:false});
+      this.cv.addEventListener('pointerup',e=>{ e.preventDefault(); onUp(e.clientX,e.clientY); },{passive:false});
+      // Touch fallback
+      this.cv.addEventListener('touchstart',e=>{ e.preventDefault(); const t=e.changedTouches[0]; onDown(t.clientX,t.clientY); },{passive:false});
+      this.cv.addEventListener('touchend',e=>{ e.preventDefault(); const t=e.changedTouches[0]; onUp(t.clientX,t.clientY); },{passive:false});
+      // Mouse fallback
+      this.cv.addEventListener('mousedown',e=>{ e.preventDefault(); onDown(e.clientX,e.clientY); });
+      this.cv.addEventListener('mouseup',e=>{ e.preventDefault(); onUp(e.clientX,e.clientY); });
+
       this.load(0);
     },
     next(){ this.load((this.idx+1)%this.levels.length); },
@@ -351,8 +388,8 @@
     },
     moveBy(dir){ if(dir==='N') this.move(-1,0); if(dir==='S') this.move(1,0); if(dir==='W') this.move(0,-1); if(dir==='E') this.move(0,1); },
     move(dr,dc){
-      this.player.r=Math.max(0,Math.min(this.rows-1,this.player.r+dr));
-      this.player.c=Math.max(0,Math.min(this.cols-1,this.player.c+dc));
+      this.player.r=clamp(this.player.r+dr,0,this.rows-1);
+      this.player.c=clamp(this.player.c+dc,0,this.cols-1);
       this.draw();
       if(this.targets>0 && (this.player.r===0||this.player.c===0||this.player.r===this.rows-1||this.player.c===this.cols-1)){
         this.targets--; this.onScore(5); if(this.targets===0) alert('🎯 Nivell completat!');
@@ -360,17 +397,16 @@
     },
     draw(){
       const g=this.ctx, cs=this.cell; g.clearRect(0,0,this.cv.width,this.cv.height);
-      g.strokeStyle='#e5e7eb';
-      for(let r=0;r<this.rows;r++) for(let c=0;c<this.cols;c++) g.strokeRect(c*cs, r*cs, cs, cs);
+      g.strokeStyle='#e5e7eb'; for(let r=0;r<this.rows;r++) for(let c=0;c<this.cols;c++) g.strokeRect(c*cs, r*cs, cs, cs);
       g.fillStyle='#2563eb'; g.fillRect(this.player.c*cs+4, this.player.r*cs+4, cs-8, cs-8);
       g.fillStyle='#1f2937'; g.fillRect(0, this.rows*cs, this.cv.width, 28);
       g.fillStyle='white'; g.font='12px system-ui'; g.fillText('🎯 pendents: '+this.targets, 8, this.rows*cs+18);
     }
   };
 
-  /* ==========================================================
-     JOC 4 — Pentomino Packing (touch-first senzill)
-     ========================================================== */
+  /* ===============================
+     JOC 4 — Pentomino Packing
+     =============================== */
   const Pentomino = {
     name:'Pentomino Packing', timeLimit:null,
     level:0, rows:0, cols:0, cell:30, board:[], pieces:[], active:null, dragOff:[0,0], pendingDrop:false,
@@ -401,7 +437,7 @@
               <button id="btnFlip" class="btn">⇋ Reflectir</button>
               <button id="btnResetP" class="btn">Reinicia</button>
             </div>
-            <p class="muted" style="margin-top:6px">Consell: doble-tap = rotar · mantenir = reflectir</p>
+            <p class="muted" style="margin-top:6px">Doble-tap = rotar · mantenir = reflectir</p>
           </div>
         </div>`;
       root.appendChild(wrap);
@@ -469,9 +505,9 @@
     }
   };
 
-  /* ==========================================================
-     JOC 5 — Paper Nets (cubs)
-     ========================================================== */
+  /* ===============================
+     JOC 5 — Paper Nets
+     =============================== */
   const Nets = {
     name:'Paper Nets', timeLimit:null, idx:0, angle:25,
     levels:[
@@ -511,14 +547,13 @@
       ctx.strokeStyle='#9ca3af'; ctx.lineWidth=1.5;
       for(let r=0;r<nR;r++) for(let c=0;c<m[r].length;c++) if(m[r][c]){ ctx.strokeRect(ox+c*s, oy+r*s, s, s); ctx.fillStyle='rgba(37,99,235,0.08)'; ctx.fillRect(ox+c*s, oy+r*s, s, s); }
       const lift=Math.sin(this.angle*Math.PI/180)*s;
-      // pinta el primer quadrat "alçat"
       let cr=0,cc=0; outer: for(let r=0;r<nR;r++) for(let c=0;c<nC;c++) if(m[r][c]){ cr=r; cc=c; break outer; }
       ctx.fillStyle='rgba(16,185,129,0.15)'; ctx.fillRect(ox+cc*s, oy+cr*s-lift, s, s);
       ctx.strokeStyle='#10b981'; ctx.strokeRect(ox+cc*s, oy+cr*s-lift, s, s);
     }
   };
 
-  /* ---------- Registre de jocs ---------- */
+  /* ---------- Registre ---------- */
   const GAMES = {
     rotation_rush: RotationRush,
     symmetry_painter: SymmetryPainter,
@@ -527,9 +562,8 @@
     nets: Nets
   };
 
-  /* ---------- Helpers locals ---------- */
-  function clamp(v,min,max){ return Math.max(min, Math.min(max, v)); }
-  window.startGame = startGame; // (opcional per a debugging a consola)
+  /* Exposa startGame per si cal des de consola */
+  window.startGame = startGame;
 
 })();
 </script>
