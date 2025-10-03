@@ -1,514 +1,537 @@
 <!DOCTYPE html>
 <html lang="ca">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <title>Raonament Espacial · Pack de Jocs (Touch First)</title>
-  <link rel="icon" href="favicon.svg" type="image/svg+xml">
-  <script> window.tailwind = { config: { darkMode: 'class' } };</script>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <style>
-    *,*::before,*::after{ box-sizing:border-box; }
-    html,body,#root{ height:100%; width:100%; margin:0; }
-    body{ min-height:100vh; min-width:100vw; overflow-x:hidden; overflow-y:auto; }
-    #root{ display:flex; min-height:100vh; min-width:100vw; }
-    .app-container{ flex:1 0 auto; min-height:100vh; width:100%; }
-    @supports (height: 100dvh){ body,#root,.app-container{ min-height:100dvh; } }
-
-    .px-safe{ padding-left: max(1rem, env(safe-area-inset-left)); padding-right: max(1rem, env(safe-area-inset-right)); }
-
-    /* HUB targetes */
-    .card{ background: color-mix(in oklab, white 70%, transparent); }
-    .dark .card{ background: color-mix(in oklab, #0f172a 60%, transparent); }
-
-    /* Symmetry Painter */
-    .cell{ width: 26px; height: 26px; border:1px solid #e5e7eb; }
-    .dark .cell{ border-color:#334155; }
-    .cell.on{ background:#111827; }
-    .dark .cell.on{ background:#e2e8f0; }
-    .cell.hint{ outline: 2px dashed #94a3b8; }
-
-    /* Canvases nítids a mòbil */
-    canvas.pixel{ image-rendering: pixelated; touch-action:none; }
-
-    /* D-pad */
-    .dpad-btn{ width:60px; height:60px; border-radius:16px; display:grid; place-items:center; }
-    @media (min-width: 768px){ .dpad-btn{ width:50px; height:50px; } }
-
-    /* Toolbar flotant (pentomino) */
-    .toolbar{ position:sticky; top:1rem; display:flex; gap:.5rem; flex-wrap:wrap; }
-  </style>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Raonament Espacial · Pack de Jocs (Lite)</title>
+<style>
+  :root{
+    --bg:#f6f7fb; --fg:#1f2937; --muted:#6b7280;
+    --card:#ffffff; --line:#e5e7eb; --primary:#2563eb; --accent:#10b981;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%}
+  body{min-height:100vh;background:var(--bg);color:var(--fg);font:16px/1.45 system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial, "Noto Sans", "Apple Color Emoji","Segoe UI Emoji";}
+  header{position:sticky;top:0;background:#fff;border-bottom:1px solid var(--line);}
+  .wrap{max-width:1100px;margin:0 auto;padding:16px;}
+  h1{margin:0;font-size:22px}
+  main{max-width:1100px;margin:0 auto;padding:16px;}
+  .grid{display:grid;gap:12px}
+  .hub{grid-template-columns:repeat(auto-fit,minmax(240px,1fr))}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px;display:flex;flex-direction:column}
+  .card h2{font-size:18px;margin:0 0 6px 0}
+  .muted{color:var(--muted);font-size:13px;margin:0 0 10px 0}
+  button{cursor:pointer}
+  .btn{border:1px solid var(--line);background:#fff;border-radius:10px;padding:10px 12px}
+  .btn.primary{background:var(--primary);border-color:var(--primary);color:white}
+  .btn.inline{padding:6px 10px;font-size:14px}
+  .bar{display:flex;align-items:center;gap:10px;justify-content:space-between;margin-bottom:10px}
+  .stats{display:flex;gap:14px;font-size:14px}
+  .scene{background:#fff;border:1px solid var(--line);border-radius:12px;padding:12px}
+  #gameRoot{min-height:260px}
+  canvas{background:white;border:1px solid var(--line);border-radius:8px;touch-action:none}
+  /* Symmetry Painter */
+  .gridcells{display:grid;gap:1px;background:var(--line);padding:1px;user-select:none;touch-action:none}
+  .cell{width:22px;height:22px;background:#fff}
+  .cell.on{background:#111827}
+  .cell.hint{outline:2px dashed #9ca3af}
+  /* D-pad senzill */
+  .dpad{display:grid;grid-template-columns:50px 50px 50px;grid-template-rows:50px 50px 50px;gap:6px;justify-content:center}
+  .dpad .btn{height:50px}
+  footer{color:#6b7280;text-align:center;font-size:12px;padding:16px}
+</style>
 </head>
-<body class="transition-colors duration-300 bg-gradient-to-br from-purple-100 via-pink-100 to-blue-100 text-slate-800 dark:from-slate-950 dark:via-slate-900 dark:to-slate-900 dark:text-slate-100">
-<div id="root" class="app-container flex flex-col">
-  <!-- Header -->
-  <header class="w-full sticky top-0 z-10 backdrop-blur supports-[backdrop-filter]:bg-white/50 dark:supports-[backdrop-filter]:bg-slate-900/40 bg-white/70 dark:bg-slate-900/60 border-b border-white/30 dark:border-slate-700/50">
-    <div class="max-w-7xl mx-auto px-safe py-4 flex items-center justify-between">
-      <h1 class="text-3xl md:text-4xl font-black bg-gradient-to-r from-purple-600 via-pink-600 to-blue-600 bg-clip-text text-transparent">
-        🧠 Raonament Espacial · Pack de Jocs
-      </h1>
-      <nav class="hidden sm:flex gap-2">
-        <button data-route="hub" class="rounded-xl px-3 py-2 text-sm font-semibold bg-white/70 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700">Inici</button>
-        <button id="btnResetGlobal" class="rounded-xl px-3 py-2 text-sm font-semibold bg-white/70 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700">Reinicia joc</button>
-      </nav>
+<body>
+<header>
+  <div class="wrap bar">
+    <h1>🧠 Raonament Espacial · Pack (Lite)</h1>
+    <div>
+      <button id="btnHome" class="btn inline">Inici</button>
+      <button id="btnResetGlobal" class="btn inline">Reinicia joc</button>
     </div>
-  </header>
+  </div>
+</header>
 
-  <!-- Contingut -->
-  <main class="max-w-7xl mx-auto w-full px-safe py-6">
-    <!-- HUB -->
-    <section id="hub" class="grid gap-4 md:grid-cols-3">
-      <article class="card rounded-2xl p-5 border border-black/5 dark:border-white/10 shadow-sm flex flex-col">
-        <div class="flex items-center justify-between mb-2"><h2 class="text-lg font-semibold">Rotation Rush</h2><span class="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-700 border">Rotació</span></div>
-        <p class="text-sm opacity-80 mb-4">Toca la rotació correcta d’una figura.</p>
-        <button class="mt-auto rounded-xl px-4 py-3 text-sm font-semibold bg-gradient-to-r from-emerald-400 to-emerald-600 text-white border border-emerald-500/30 shadow" data-start="rotation_rush">Jugar</button>
-      </article>
+<main>
+  <!-- HUB -->
+  <section id="hub" class="grid hub">
+    <article class="card">
+      <h2>Rotation Rush</h2>
+      <p class="muted">Tria la rotació correcta (90°, 180°, 270°) d’una figura asimètrica.</p>
+      <button class="btn primary" data-start="rotation_rush">Jugar</button>
+    </article>
 
-      <article class="card rounded-2xl p-5 border border-black/5 dark:border-white/10 shadow-sm flex flex-col">
-        <div class="flex items-center justify-between mb-2"><h2 class="text-lg font-semibold">Symmetry Painter</h2><span class="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-700 border">Simetria</span></div>
-        <p class="text-sm opacity-80 mb-4">Pinta arrossegant; es reflectirà a l’altra meitat.</p>
-        <button class="mt-auto rounded-xl px-4 py-3 text-sm font-semibold bg-gradient-to-r from-emerald-400 to-emerald-600 text-white border border-emerald-500/30 shadow" data-start="symmetry_painter">Jugar</button>
-      </article>
+    <article class="card">
+      <h2>Symmetry Painter</h2>
+      <p class="muted">Pinta al costat dret i completa la simetria vertical.</p>
+      <button class="btn primary" data-start="symmetry_painter">Jugar</button>
+    </article>
 
-      <article class="card rounded-2xl p-5 border border-black/5 dark:border-white/10 shadow-sm flex flex-col">
-        <div class="flex items-center justify-between mb-2"><h2 class="text-lg font-semibold">Map Hunt</h2><span class="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-700 border">Orientació</span></div>
-        <p class="text-sm opacity-80 mb-4">Llisca sobre el mapa o usa el D-pad.</p>
-        <button class="mt-auto rounded-xl px-4 py-3 text-sm font-semibold bg-gradient-to-r from-emerald-400 to-emerald-600 text-white border border-emerald-500/30 shadow" data-start="map_hunt">Jugar</button>
-      </article>
+    <article class="card">
+      <h2>Map Hunt</h2>
+      <p class="muted">Mou-te pel mapa (llisca o D-pad) i caça fites.</p>
+      <button class="btn primary" data-start="map_hunt">Jugar</button>
+    </article>
 
-      <article class="card rounded-2xl p-5 border border-black/5 dark:border-white/10 shadow-sm flex flex-col">
-        <div class="flex items-center justify-between mb-2"><h2 class="text-lg font-semibold">Pentomino Packing</h2><span class="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-700 border">Encaix</span></div>
-        <p class="text-sm opacity-80 mb-4">Toca peça → toca tauler → arrossega. Doble-tap: rotar · Mantén: reflectir.</p>
-        <button class="mt-auto rounded-xl px-4 py-3 text-sm font-semibold bg-gradient-to-r from-emerald-400 to-emerald-600 text-white border border-emerald-500/30 shadow" data-start="pentomino">Jugar</button>
-      </article>
+    <article class="card">
+      <h2>Pentomino Packing</h2>
+      <p class="muted">Toca una peça, toca el tauler per deixar-la i arrossega.</p>
+      <button class="btn primary" data-start="pentomino">Jugar</button>
+    </article>
 
-      <article class="card rounded-2xl p-5 border border-black/5 dark:border-white/10 shadow-sm flex flex-col">
-        <div class="flex items-center justify-between mb-2"><h2 class="text-lg font-semibold">Paper Nets</h2><span class="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-700 border">Nets 2D→3D</span></div>
-        <p class="text-sm opacity-80 mb-4">Mou el lliscador i toca “Valida”.</p>
-        <button class="mt-auto rounded-xl px-4 py-3 text-sm font-semibold bg-gradient-to-r from-emerald-400 to-emerald-600 text-white border border-emerald-500/30 shadow" data-start="nets">Jugar</button>
-      </article>
-    </section>
+    <article class="card">
+      <h2>Paper Nets</h2>
+      <p class="muted">Desplegables d’un cub. Mou l’angle i valida.</p>
+      <button class="btn primary" data-start="nets">Jugar</button>
+    </article>
+  </section>
 
-    <!-- ESCENA -->
-    <section id="scene" class="hidden">
-      <div class="rounded-2xl p-4 card border border-black/5 dark:border-white/10 shadow-sm">
-        <div class="flex flex-wrap items-center justify-between gap-3">
-          <div class="flex items-center gap-2"><span class="text-sm font-medium">Joc:</span><span id="uiGameName" class="text-sm font-semibold"></span><span class="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-700 border" id="uiMode">Aprenentatge</span></div>
-          <div class="flex items-center gap-4"><div class="text-sm">Punts: <span id="uiScore" class="font-semibold">0</span></div><div class="text-sm">Temps: <span id="uiTime" class="font-semibold">—</span></div></div>
-        </div>
-
-        <div id="gameRoot" class="mt-4"></div>
-
-        <div id="uiActions" class="mt-4 flex flex-wrap gap-2">
-          <button data-route="hub" class="rounded-xl px-4 py-3 text-sm font-semibold bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700">Torna</button>
-          <button id="btnNext" class="rounded-xl px-4 py-3 text-sm font-semibold bg-gradient-to-r from-emerald-400 to-emerald-600 text-white border border-emerald-500/30">Següent</button>
-        </div>
+  <!-- ESCENA -->
+  <section id="scene" class="scene" style="display:none">
+    <div class="bar">
+      <div>Joc: <strong id="uiGameName">—</strong></div>
+      <div class="stats">
+        <div>Punts: <strong id="uiScore">0</strong></div>
+        <div>Temps: <strong id="uiTime">—</strong></div>
       </div>
-    </section>
+    </div>
+    <div id="gameRoot"></div>
+    <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">
+      <button id="btnBack" class="btn">Torna</button>
+      <button id="btnNext" class="btn">Següent</button>
+    </div>
+    <p id="globalMessage" class="muted" style="margin-top:8px"></p>
+  </section>
+</main>
 
-    <p id="globalMessage" class="mt-4 text-sm"></p>
-  </main>
-
-  <footer class="mt-auto text-center p-4 text-xs text-slate-600 dark:text-slate-400 px-safe">
-    <p>Pack de jocs per a GitHub Pages · Sense dependències extra. Llicència: CC BY-NC-SA 4.0</p>
-  </footer>
-</div>
+<footer>
+  Pack per a GitHub Pages · Sense dependències externes · Llicència: CC BY-NC-SA 4.0
+</footer>
 
 <script>
-/* ===== Tema ===== */
-(function(){ const root=document.documentElement;
-  const saved=localStorage.getItem('theme');
-  const prefers=matchMedia('(prefers-color-scheme: dark)').matches;
-  if((saved==='dark')||(!saved&&prefers)) root.classList.add('dark');
-})();
+(function(){
+  "use strict";
 
-/* ===== Helpers ===== */
-const el=s=>document.querySelector(s);
-const $hub=el('#hub'), $scene=el('#scene'), $root=el('#gameRoot');
-const $uiName=el('#uiGameName'), $uiScore=el('#uiScore'), $uiTime=el('#uiTime'), $msg=el('#globalMessage');
-const clamp=(v,min,max)=>Math.max(min,Math.min(max,v));
-const sample=arr=>arr[Math.floor(Math.random()*arr.length)];
-const avg=arr=>arr.reduce((a,b)=>a+b,0)/arr.length;
-function pulse(n){n?.animate([{transform:'scale(1)'},{transform:'scale(1.03)'},{transform:'scale(1)'}],{duration:220,easing:'ease-out'})}
+  /* ---------- Utils DOM ---------- */
+  const $ = (sel,root=document)=>root.querySelector(sel);
+  const $$ = (sel,root=document)=>Array.from(root.querySelectorAll(sel));
 
-/* ===== Navegació i estat ===== */
-function showHub(){ clearTimer(); $scene.classList.add('hidden'); $hub.classList.remove('hidden'); $msg.textContent=''; }
-function showScene(){ $hub.classList.add('hidden'); $scene.classList.remove('hidden'); }
+  /* ---------- Estat app ---------- */
+  const hub = $('#hub');
+  const scene = $('#scene');
+  const root = $('#gameRoot');
+  const uiName = $('#uiGameName');
+  const uiScore = $('#uiScore');
+  const uiTime = $('#uiTime');
+  const msg = $('#globalMessage');
 
-let state={ score:0, timeLeft:null, timerId:null, game:null };
-function setScore(v){ state.score=v; $uiScore.textContent=v; }
-function setTime(v){ state.timeLeft=v; $uiTime.textContent=(v==null?'—':v); }
-function clearTimer(){ if(state.timerId){ clearInterval(state.timerId); state.timerId=null; } }
-function startTimer(){ clearTimer(); if(state.timeLeft==null) return; state.timerId=setInterval(()=>{ state.timeLeft--; $uiTime.textContent=state.timeLeft; if(state.timeLeft<=0) endGame('lose'); },1000); }
-function endGame(kind){ clearTimer(); alert(kind==='win'?`🎉 Ben fet! Punts: ${state.score}`:`⏱️ Temps esgotat. Punts: ${state.score}`); }
+  let state = { score:0, timeLeft:null, timerId:null, game:null };
 
-function startGame(id){
-  const G=GAMES[id]; state.game={id,name:G.name,...G};
-  $uiName.textContent=G.name; setScore(0); setTime(G.timeLimit??null);
-  $root.innerHTML=''; showScene(); G.init($root,(d)=> setScore(Math.max(0,state.score+d)));
-  if(G.timeLimit) startTimer(); $msg.textContent=G.hint??'';
-}
-el('#btnNext')?.addEventListener('pointerup',()=>{ state.game?.next && state.game.next(); });
+  function setScore(v){ state.score=Math.max(0, v); uiScore.textContent=state.score; }
+  function setTime(v){ state.timeLeft = (v==null? null : +v); uiTime.textContent = (state.timeLeft==null?'—':state.timeLeft); }
+  function clearTimer(){ if(state.timerId){ clearInterval(state.timerId); state.timerId=null; } }
+  function startTimer(){ clearTimer(); if(state.timeLeft==null) return;
+    state.timerId=setInterval(()=>{ state.timeLeft--; uiTime.textContent=state.timeLeft;
+      if(state.timeLeft<=0){ endGame('lose'); } },1000);
+  }
+  function endGame(kind){ clearTimer(); alert(kind==='win'?'🎉 Ben fet!':'⏱️ Temps esgotat.'); }
 
-/* ===== Nivells ===== */
-const LEVELS={
-  rotation_rush:{
-    rounds:10, angles:[90,180,270],
-    // Figures asimètriques (sense simetria pròpia)
+  function showHub(){ clearTimer(); scene.style.display='none'; hub.style.display='grid'; msg.textContent=''; }
+  function showScene(){ hub.style.display='none'; scene.style.display='block'; }
+
+  /* ---------- Navegació ---------- */
+  function startGame(id){
+    try{
+      const G = GAMES[id];
+      if(!G){ alert('Joc no trobat.'); return; }
+      uiName.textContent = G.name || '—';
+      setScore(0); setTime(G.timeLimit ?? null);
+      root.innerHTML=''; showScene();
+      G.init(root,(delta)=> setScore(state.score + delta));
+      if(G.timeLimit) startTimer();
+      msg.textContent = G.hint || '';
+      state.game = G;
+    }catch(err){
+      console.error(err);
+      alert('S\'ha produït un error inicialitzant el joc.');
+      showHub();
+    }
+  }
+
+  function wire(){
+    // Botons HUB (click clàssic, robust a mòbil i desktop)
+    $$('[data-start]').forEach(b => b.addEventListener('click', ()=> startGame(b.dataset.start)));
+    // Header i escena
+    $('#btnHome')?.addEventListener('click', showHub);
+    $('#btnBack')?.addEventListener('click', showHub);
+    $('#btnResetGlobal')?.addEventListener('click', ()=>{
+      try{ if(state.game && typeof state.game.reset==='function') state.game.reset(); setScore(0); setTime(state.game?.timeLimit ?? null); }catch(e){ console.error(e); }
+    });
+    $('#btnNext')?.addEventListener('click', ()=>{ try{ state.game?.next && state.game.next(); }catch(e){ console.error(e); } });
+  }
+
+  document.addEventListener('DOMContentLoaded', wire);
+
+  /* ==========================================================
+     JOC 1 — Rotation Rush (figures clarament asimètriques)
+     ========================================================== */
+  const RotationRush = {
+    name:'Rotation Rush', timeLimit:20,
+    round:0, basePoly:null, choicesWrap:null, baseCtx:null, correctIndex:0, correctAngle:90,
     shapeset:[
-      [[0,0],[70,8],[56,26],[92,40],[52,58],[76,74],[18,68],[10,44],[28,36],[8,22]],
-      [[0,0],[64,0],[64,18],[34,18],[34,58],[16,58],[16,20],[2,20]],
-      [[10,24],[58,0],[96,26],[68,36],[90,72],[44,54],[14,70],[30,40]],
-      [[0,10],[48,10],[48,26],[32,26],[32,40],[74,40],[74,58],[16,58],[16,28],[0,28]],
+      // Totes asimètriques (sense simetria d’ordre 2/4)
+      [[0,0],[62,6],[52,22],[90,34],[50,54],[74,70],[16,64],[10,42],[28,34],[6,18]],
+      [[0,0],[70,0],[70,16],[36,16],[36,56],[14,56],[14,18],[2,18]],
+      [[8,20],[58,0],[96,26],[68,36],[88,74],[44,56],[14,70],[30,40]],
+      [[0,10],[48,10],[48,26],[34,26],[34,40],[76,40],[76,58],[12,58],[12,28],[0,28]],
       [[0,18],[54,18],[72,6],[88,20],[40,32],[82,44],[62,60],[0,60],[10,40]],
-      [[0,8],[64,8],[50,22],[80,22],[26,60],[44,44],[0,44]]
-    ]
-  },
-  symmetry_painter:[
-    {rows:12,cols:16,target:(r,c)=>(r>2&&r<9&&c<4&&(r+c)%2===0)},
-    {rows:14,cols:20,target:(r,c)=>((r>3&&r<10&&c<6)&&(r%3===0||c%2===0))},
-    {rows:16,cols:22,target:(r,c)=>((r>4&&r<12&&c<7)&&((r+c)%3===0))}
-  ],
-  map_hunt:[
-    {rows:8,cols:8,start:[0,0],targets:3,hints:['E2','S3','E1','N1','E1']},
-    {rows:10,cols:10,start:[2,2],targets:4,hints:['N2','E3','S1','E2','N3','W1']},
-    {rows:12,cols:12,start:[5,1],targets:5,hints:['E4','N2','E1','S3','W2','N1','E3']}
-  ],
-  pentomino:[
-    {rows:5,cols:5,pieces:['F','L','P','T','Z']},
-    {rows:6,cols:6,pieces:['F','L','P','T','Z','U','V']},
-  ],
-  nets:[
-    {layout:[[0,1,0],[1,1,1],[0,1,0]],valid:true,label:'Creu (vàlid)'},
-    {layout:[[1,1,1,1,1,1]],valid:false,label:'Tira de 6 (no vàlid)'},
-    {layout:[[0,1,0],[1,1,1],[0,0,1]],valid:false,label:'T incomplet'}
-  ]
-};
-
-/* ===== Rotation Rush ===== */
-const RotationRush = {
-  name:'Rotation Rush', timeLimit:20,
-  container:null, baseCtx:null, choicesWrap:null,
-  round:0, basePoly:null, correctIndex:0, correctAngle:90,
-  init(root,onScore){
-    this.onScore=onScore; this.round=0;
-    this.container=document.createElement('div');
-    this.container.className='grid md:grid-cols-2 gap-4';
-    this.container.innerHTML=`
-      <div class="flex flex-col items-center gap-2">
-        <canvas id="rr-base" width="260" height="260" class="pixel border rounded-xl bg-white dark:bg-slate-900"></canvas>
-        <div class="text-sm text-slate-500">Toca la rotació correcta (90°, 180° o 270°)</div>
-      </div>
-      <div><div id="rr-choices" class="grid grid-cols-2 gap-3"></div></div>`;
-    root.appendChild(this.container);
-    const base=this.container.querySelector('#rr-base');
-    this.baseCtx = base ? base.getContext('2d') : null;
-    this.choicesWrap = this.container.querySelector('#rr-choices');
-    this.next();
-  },
-  reset(){ this.round=0; this.next(); },
-  next(){
-    setTime(this.timeLimit); startTimer();
-    this.round++; if(this.round>LEVELS.rotation_rush.rounds){ endGame('win'); return; }
-    const polys = LEVELS.rotation_rush.shapeset.slice();
-    this.basePoly = sample(polys);
-    if (this.baseCtx){
-      this.baseCtx.clearRect(0,0,260,260);
-      drawPoly(this.baseCtx,this.basePoly,{x:130,y:130,stroke:'#0f172a'});
-    }
-    if (!this.choicesWrap) return;
-    this.choicesWrap.innerHTML='';
-    const angles=[90,180,270];
-    this.correctAngle = sample(angles);
-    this.correctIndex = Math.floor(Math.random()*4);
-
-    const distractors = angles.filter(a=>a!==this.correctAngle);
-    const opts = [this.correctAngle, ...distractors];
-    while(opts.length<4) opts.push(sample(angles));
-
-    const usedAngles = new Set();
-    for(let i=0;i<4;i++){
-      const cv=document.createElement('canvas'); cv.width=140; cv.height=140;
-      cv.className='pixel border rounded-xl bg-white dark:bg-slate-900 cursor-pointer';
-      const ctx=cv.getContext('2d');
-      const ok = i===this.correctIndex;
-      let angle = ok ? this.correctAngle : opts.shift();
-      while(usedAngles.has(angle)) angle = sample(angles);
-      usedAngles.add(angle);
-      const off = ok ? {dx:0,dy:0} : {dx:(Math.random()<.5? -6:6), dy:(Math.random()<.5? -6:6)};
-      drawPoly(ctx,this.basePoly,{x:70+off.dx,y:70+off.dy,rot:angle,stroke:'#0f172a'});
-      cv.addEventListener('pointerup',()=> this.pick(ok), {passive:true});
-      cv.addEventListener('click',()=> this.pick(ok)); /* compat: click */
-      this.choicesWrap.appendChild(cv);
-    }
-  },
-  pick(ok){ if(ok){ this.onScore(10); pulse(this.container); this.next(); } else { this.onScore(-2); } }
-};
-function drawPoly(ctx,poly,{x=0,y=0,rot=0,stroke='#000'}={}){
-  ctx.save(); ctx.translate(x,y); ctx.rotate(rot*Math.PI/180);
-  const cx=avg(poly.map(p=>p[0])), cy=avg(poly.map(p=>p[1]));
-  ctx.beginPath(); ctx.moveTo(poly[0][0]-cx, poly[0][1]-cy);
-  for(let i=1;i<poly.length;i++) ctx.lineTo(poly[i][0]-cx, poly[i][1]-cy);
-  ctx.closePath(); ctx.strokeStyle=stroke; ctx.lineWidth=2; ctx.stroke(); ctx.restore();
-}
-
-/* ===== Symmetry Painter ===== */
-const SymmetryPainter={
-  name:'Symmetry Painter', container:null, gridEl:null, levelIndex:0, grid:[], targetMask:[], rows:0, cols:0,
-  hint:'Arrossega per pintar. Només a la meitat dreta.',
-  init(root,onScore){
-    this.onScore=onScore; this.levelIndex=0;
-    const wrap=document.createElement('div'); wrap.className='flex flex-col gap-3';
-    wrap.innerHTML=`<div class="text-sm text-slate-600 dark:text-slate-300">Completa la simetria axial vertical.</div><div id="sym-grid" class="inline-block bg-white dark:bg-slate-900 p-2 rounded-xl border shadow"></div>`;
-    root.appendChild(wrap); this.container=wrap; this.gridEl=wrap.querySelector('#sym-grid'); this.loadLevel(0);
-  },
-  next(){ this.levelIndex=(this.levelIndex+1)%LEVELS.symmetry_painter.length; this.loadLevel(this.levelIndex); },
-  loadLevel(i){
-    const L=LEVELS.symmetry_painter[i]; this.rows=L.rows; this.cols=L.cols; const half=Math.floor(this.cols/2);
-    this.targetMask=Array.from({length:this.rows},(_,r)=>Array.from({length:this.cols},(_,c)=> (c<half && L.target(r,c)?1:0)));
-    this.grid=Array.from({length:this.rows},()=>Array(this.cols).fill(0)); this.render();
-  },
-  render(){
-    const g=this.gridEl; g.innerHTML=''; g.style.display='grid'; g.style.gridTemplateColumns=`repeat(${this.cols}, 26px)`;
-    let painting=false; const toggle=(r,c)=>{ if(c<Math.floor(this.cols/2)) return; this.grid[r][c]=this.grid[r][c]?0:1; };
-    for(let r=0;r<this.rows;r++) for(let c=0;c<this.cols;c++){
-      const d=document.createElement('div'); d.className='cell';
-      if(this.targetMask[r][c]===1) d.classList.add('hint');
-      if(this.grid[r][c]===1) d.classList.add('on');
-      d.addEventListener('pointerdown',(e)=>{ e.preventDefault(); painting=true; toggle(r,c); this.render(); },{passive:false});
-      d.addEventListener('pointerenter',()=>{ if(painting){ toggle(r,c); this.render(); }});
-      document.addEventListener('pointerup',()=> painting=false, {once:false});
-      g.appendChild(d);
-    }
-    this.checkWin();
-  },
-  checkWin(){
-    const mid=Math.floor(this.cols/2);
-    for(let r=0;r<this.rows;r++) for(let c=0;c<mid;c++)
-      if(this.targetMask[r][c]!==this.grid[r][this.cols-1-c]) return;
-    this.onScore(20); pulse(this.gridEl);
-  }
-};
-
-/* ===== Map Hunt ===== */
-const MapHunt={
-  name:'Map Hunt', container:null, canvas:null, ctx:null, levelIndex:0, rows:0, cols:0, cellSize:36, player:{r:0,c:0}, targetsLeft:0, hints:[],
-  hint:'Llisca sobre el mapa o toca el D-pad.',
-  init(root,onScore){
-    this.onScore=onScore; this.levelIndex=0;
-    const wrap=document.createElement('div'); wrap.className='grid md:grid-cols-[1fr_auto] gap-3 items-start';
-    wrap.innerHTML=`<div class="flex flex-col gap-2"><canvas id="mh" class="pixel border rounded-xl bg-white dark:bg-slate-900 shadow"></canvas><div class="text-xs text-slate-500">Pistes: <span id="mhHints"></span></div></div>
-      <div class="toolbar">
-        <div class="grid grid-cols-3 grid-rows-3 gap-2">
-          <div></div>
-          <button class="dpad-btn bg-white dark:bg-slate-900 border" data-dir="N">⬆️</button>
-          <div></div>
-          <button class="dpad-btn bg-white dark:bg-slate-900 border" data-dir="W">⬅️</button>
-          <div class="dpad-btn bg-white dark:bg-slate-900 border opacity-50 select-none">·</div>
-          <button class="dpad-btn bg-white dark:bg-slate-900 border" data-dir="E">➡️</button>
-          <div></div>
-          <button class="dpad-btn bg-white dark:bg-slate-900 border" data-dir="S">⬇️</button>
-          <div></div>
+      [[0,8],[64,8],[50,22],[78,22],[28,58],[44,44],[0,44]]
+    ],
+    init(root,onScore){
+      this.onScore=onScore; this.round=0;
+      const wrap = document.createElement('div');
+      wrap.className='grid'; wrap.style.gridTemplateColumns='1fr 1fr'; wrap.style.gap='10px';
+      wrap.innerHTML = `
+        <div>
+          <canvas id="rr-base" width="240" height="240"></canvas>
+          <div class="muted" style="margin-top:6px">Tria la rotació correcta (90°, 180°, 270°)</div>
         </div>
-      </div>`;
-    root.appendChild(wrap);
-    this.container=wrap; this.canvas=wrap.querySelector('#mh'); this.ctx=this.canvas.getContext('2d');
-    wrap.querySelectorAll('[data-dir]').forEach(b=>{
-      b.addEventListener('pointerup',()=>this.moveByDir(b.dataset.dir));
-      b.addEventListener('click',()=>this.moveByDir(b.dataset.dir));
-    });
-    this.loadLevel(0);
-    let sx=0, sy=0, down=false;
-    this.canvas.addEventListener('pointerdown',e=>{ down=true; sx=e.clientX; sy=e.clientY; this.canvas.setPointerCapture(e.pointerId); });
-    this.canvas.addEventListener('pointerup',e=>{
-      if(!down) return; down=false;
-      const dx=e.clientX-sx, dy=e.clientY-sy;
-      if(Math.hypot(dx,dy)<20) return;
-      if(Math.abs(dx)>Math.abs(dy)) this.moveByDir(dx>0?'E':'W'); else this.moveByDir(dy>0?'S':'N');
-    });
-  },
-  next(){ const n=LEVELS.map_hunt.length; this.loadLevel((this.levelIndex+1)%n); },
-  loadLevel(i){
-    this.levelIndex=i; const L=LEVELS.map_hunt[i];
-    this.rows=L.rows; this.cols=L.cols; this.player={r:L.start[0],c:L.start[1]}; this.targetsLeft=L.targets; this.hints=[...L.hints];
-    this.canvas.width=this.cols*this.cellSize; this.canvas.height=this.rows*this.cellSize+32;
-    this.container.querySelector('#mhHints').textContent=this.hints.join(', ');
-    this.draw();
-  },
-  moveByDir(dir){ if(dir==='N') this.move(-1,0); if(dir==='S') this.move(1,0); if(dir==='W') this.move(0,-1); if(dir==='E') this.move(0,1); },
-  move(dr,dc){
-    this.player.r=clamp(this.player.r+dr,0,this.rows-1);
-    this.player.c=clamp(this.player.c+dc,0,this.cols-1);
-    this.draw();
-    if(this.targetsLeft>0 && (this.player.r===0||this.player.c===0||this.player.r===this.rows-1||this.player.c===this.cols-1)){
-      this.targetsLeft--; this.onScore(5); pulse(this.canvas); if(this.targetsLeft===0) alert('🎯 Nivell completat!');
-    }
-  },
-  draw(){
-    const ctx=this.ctx, cs=this.cellSize; ctx.clearRect(0,0,this.canvas.width,this.canvas.height);
-    ctx.strokeStyle='#e5e7eb'; for(let r=0;r<this.rows;r++) for(let c=0;c<this.cols;c++) ctx.strokeRect(c*cs,r*cs,cs,cs);
-    ctx.fillStyle='#0ea5e9'; ctx.fillRect(this.player.c*cs+4,this.player.r*cs+4,cs-8,cs-8);
-    ctx.fillStyle='#334155'; ctx.fillRect(0,this.rows*cs,this.canvas.width,32);
-    ctx.fillStyle='white'; ctx.font='12px system-ui'; ctx.fillText(`🎯: ${this.targetsLeft}`,8,this.rows*cs+20);
-  }
-};
+        <div><div id="rr-choices" class="grid" style="grid-template-columns:1fr 1fr; gap:8px"></div></div>`;
+      root.appendChild(wrap);
+      this.choicesWrap = $('#rr-choices', wrap);
+      this.baseCtx = $('#rr-base', wrap).getContext('2d');
+      this.next();
+    },
+    reset(){ this.round=0; this.next(); },
+    next(){
+      setTime(this.timeLimit); startTimer();
+      this.round++; if(this.round>10){ endGame('win'); return; }
+      this.basePoly = sample(this.shapeset);
+      this.baseCtx.clearRect(0,0,240,240);
+      drawPoly(this.baseCtx,this.basePoly,{x:120,y:120,rot:0});
 
-/* ===== Pentomino ===== */
-const Pentomino={
-  name:'Pentomino Packing', container:null, canvas:null, ctx:null, levelIdx:0,
-  cell:32, rows:0, cols:0, board:[], pieces:[], activeIdx:null, dragOff:[0,0], pendingDrop:false,
-  hint:'Toca peça → toca tauler → arrossega. Doble-tap: rotar · Mantén: reflectir.',
-  init(root,onScore){
-    this.onScore=onScore; this.levelIdx=0;
-    const wrap=document.createElement('div'); wrap.className='grid lg:grid-cols-[1fr_260px] gap-4 items-start';
-    wrap.innerHTML=`<div class="flex flex-col">
-        <canvas id="pento" class="pixel border rounded-xl bg-white dark:bg-slate-900 shadow"></canvas>
-        <div class="text-sm text-slate-500 mt-2">Omple el tauler sense solapaments.</div>
-      </div>
-      <div class="card rounded-xl p-3 border shadow-sm">
-        <div class="text-sm font-medium mb-2">Peces</div>
-        <div id="pList" class="grid grid-cols-2 gap-2 mb-3"></div>
-        <div class="toolbar">
-          <button id="btnRot" class="rounded-xl px-3 py-2 bg-white dark:bg-slate-900 border">↻ Rotar</button>
-          <button id="btnFlip" class="rounded-xl px-3 py-2 bg-white dark:bg-slate-900 border">⇋ Reflectir</button>
-          <button id="btnResetP" class="rounded-xl px-3 py-2 bg-white dark:bg-slate-900 border">Reinicia</button>
-        </div>
-        <div class="text-xs opacity-70 mt-3">Consell: toca peça → toca tauler → arrossega.</div>
-      </div>`;
-    root.appendChild(wrap);
-    this.container=wrap; this.canvas=wrap.querySelector('#pento'); this.ctx=this.canvas.getContext('2d'); this.pList=wrap.querySelector('#pList');
-    this.loadLevel(0);
+      this.choicesWrap.innerHTML='';
+      const angles=[90,180,270];
+      this.correctAngle = sample(angles);
+      this.correctIndex = Math.floor(Math.random()*4);
 
-    wrap.querySelector('#btnRot').addEventListener('pointerup',()=>{ if(this.activeIdx!=null){ this.rotate(this.activeIdx); this.draw(); }});
-    wrap.querySelector('#btnFlip').addEventListener('pointerup',()=>{ if(this.activeIdx!=null){ this.reflect(this.activeIdx); this.draw(); }});
-    wrap.querySelector('#btnResetP').addEventListener('pointerup',()=> this.loadLevel(this.levelIdx));
+      const choicesAngles = new Set([this.correctAngle]);
+      while(choicesAngles.size<3) choicesAngles.add(sample(angles));
+      // si cal, afegeix una repetida amb petit desplaçament per no ser idèntiques
+      const list = [...choicesAngles];
+      while(list.length<4) list.push(sample(angles));
 
-    let pressTimer=null, lastTap=0, dragging=false;
-    this.canvas.addEventListener('pointerdown',(e)=>{ e.preventDefault();
-      const {x,y}=this.xy(e); const g=this.toGrid(x,y);
-      if(this.pendingDrop && this.activeIdx!=null){
-        const p=this.pieces[this.activeIdx]; p.pos={x:g.c, y:g.r}; this.pendingDrop=false;
+      for(let i=0;i<4;i++){
+        const cv=document.createElement('canvas'); cv.width=120; cv.height=120;
+        const ctx=cv.getContext('2d');
+        const angle = (i===this.correctIndex)? this.correctAngle : list[i%list.length];
+        const off = (i===this.correctIndex)? {dx:0,dy:0} : {dx:(Math.random()<.5?-5:5),dy:(Math.random()<.5?-5:5)};
+        drawPoly(ctx,this.basePoly,{x:60+off.dx,y:60+off.dy,rot:angle});
+        cv.addEventListener('click',()=> this.pick(i===this.correctIndex));
+        this.choicesWrap.appendChild(cv);
       }
-      this.activeIdx=this.hitPiece(g.r,g.c);
-      if(this.activeIdx!=null){ dragging=true; this.dragOff=[g.c-this.pieces[this.activeIdx].pos.x, g.r-this.pieces[this.activeIdx].pos.y]; }
-      const t=Date.now(); if(t-lastTap<280 && this.activeIdx!=null){ this.rotate(this.activeIdx); this.draw(); lastTap=0; return; } lastTap=t;
-      clearTimeout(pressTimer); pressTimer=setTimeout(()=>{ if(this.activeIdx!=null){ this.reflect(this.activeIdx); this.draw(); } },400);
-      this.canvas.setPointerCapture(e.pointerId);
+    },
+    pick(ok){ if(ok){ this.onScore(10); this.next(); } else { this.onScore(-2); } }
+  };
+
+  /* dibuixa polígon (centre normalitzat + rotació) */
+  function sample(arr){ return arr[Math.floor(Math.random()*arr.length)]; }
+  function avg(arr){ return arr.reduce((a,b)=>a+b,0)/arr.length; }
+  function drawPoly(ctx,poly,{x=0,y=0,rot=0}={}){
+    ctx.save(); ctx.translate(x,y); ctx.rotate(rot*Math.PI/180);
+    const cx=avg(poly.map(p=>p[0])), cy=avg(poly.map(p=>p[1]));
+    ctx.beginPath(); ctx.moveTo(poly[0][0]-cx, poly[0][1]-cy);
+    for(let i=1;i<poly.length;i++) ctx.lineTo(poly[i][0]-cx, poly[i][1]-cy);
+    ctx.closePath(); ctx.lineWidth=2; ctx.strokeStyle='#111827'; ctx.stroke(); ctx.restore();
+  }
+
+  /* ==========================================================
+     JOC 2 — Symmetry Painter
+     ========================================================== */
+  const SymmetryPainter = {
+    name:'Symmetry Painter', timeLimit:null,
+    levelIndex:0, rows:0, cols:0, grid:[], target:[],
+    levels:[
+      {rows:12, cols:16, target:(r,c)=>(r>2&&r<9&&c<4&&(r+c)%2===0)},
+      {rows:14, cols:20, target:(r,c)=>((r>3&&r<10&&c<6)&&(r%3===0||c%2===0))},
+      {rows:16, cols:22, target:(r,c)=>((r>4&&r<12&&c<7)&&((r+c)%3===0))}
+    ],
+    hint:'Arrossega per pintar a la meitat dreta.',
+    init(root,onScore){
+      this.onScore=onScore; this.levelIndex=0;
+      const wrap=document.createElement('div');
+      wrap.innerHTML=`<div class="muted" style="margin-bottom:6px">Completa la simetria vertical</div>
+        <div id="sym" class="gridcells"></div>`;
+      root.appendChild(wrap);
+      this.gridEl = $('#sym', wrap);
+      this.load(0);
+    },
+    next(){ this.load((this.levelIndex+1)%this.levels.length); },
+    load(i){
+      this.levelIndex=i;
+      const L=this.levels[i]; this.rows=L.rows; this.cols=L.cols;
+      const half=Math.floor(this.cols/2);
+      this.target=Array.from({length:this.rows},(_,r)=>Array.from({length:this.cols},(_,c)=> (c<half && L.target(r,c)?1:0)));
+      this.grid=Array.from({length:this.rows},()=>Array(this.cols).fill(0));
+      this.render();
+    },
+    render(){
+      const g=this.gridEl;
+      g.innerHTML=''; g.style.gridTemplateColumns=`repeat(${this.cols},22px)`;
+      let painting=false;
+      const toggle=(r,c)=>{ if(c<Math.floor(this.cols/2)) return; this.grid[r][c]=this.grid[r][c]?0:1; };
+      for(let r=0;r<this.rows;r++) for(let c=0;c<this.cols;c++){
+        const d=document.createElement('div'); d.className='cell';
+        if(this.target[r][c]===1) d.classList.add('hint');
+        if(this.grid[r][c]===1) d.classList.add('on');
+        d.addEventListener('mousedown',(e)=>{ e.preventDefault(); painting=true; toggle(r,c); this.render(); });
+        d.addEventListener('mouseover',()=>{ if(painting){ toggle(r,c); this.render(); }});
+        d.addEventListener('touchstart',(e)=>{ e.preventDefault(); painting=true; toggle(r,c); this.render(); },{passive:false});
+        d.addEventListener('touchmove',(e)=>{ e.preventDefault(); const t=e.changedTouches[0]; const el=document.elementFromPoint(t.clientX,t.clientY); if(el&&el.classList.contains('cell')) el.dispatchEvent(new Event('mouseover')); },{passive:false});
+        g.appendChild(d);
+      }
+      document.addEventListener('mouseup',()=> painting=false, {once:true});
+      document.addEventListener('touchend',()=> painting=false, {once:true});
+      this.check();
+    },
+    check(){
+      const mid=Math.floor(this.cols/2);
+      for(let r=0;r<this.rows;r++) for(let c=0;c<mid;c++)
+        if(this.target[r][c]!==this.grid[r][this.cols-1-c]) return;
+      this.onScore(20);
+    }
+  };
+
+  /* ==========================================================
+     JOC 3 — Map Hunt (D-pad + swipe)
+     ========================================================== */
+  const MapHunt = {
+    name:'Map Hunt', timeLimit:null,
+    idx:0, rows:0, cols:0, cell:34, player:{r:0,c:0}, targets:0,
+    levels:[
+      {rows:8,cols:8,start:[0,0],targets:3},
+      {rows:10,cols:10,start:[2,2],targets:4},
+      {rows:12,cols:12,start:[5,1],targets:5}
+    ],
+    init(root,onScore){
+      this.onScore=onScore; this.idx=0;
+      const wrap=document.createElement('div');
+      wrap.innerHTML=`<div style="display:grid;grid-template-columns:1fr 170px;gap:10px;align-items:start">
+        <canvas id="mh" width="340" height="340"></canvas>
+        <div>
+          <div class="dpad">
+            <div></div><button class="btn" data-dir="N">▲</button><div></div>
+            <button class="btn" data-dir="W">◀</button><div class="btn" disabled>·</div><button class="btn" data-dir="E">▶</button>
+            <div></div><button class="btn" data-dir="S">▼</button><div></div>
+          </div>
+          <p class="muted" style="margin-top:8px">Arriba a les vores per sumar fites.</p>
+        </div>
+      </div>`;
+      root.appendChild(wrap);
+      this.cv = $('#mh', wrap); this.ctx=this.cv.getContext('2d');
+      $$('#'+wrap.id+' [data-dir]', wrap).forEach(()=>{}); // no-op (compat)
+      $$('[data-dir]', wrap).forEach(b=> b.addEventListener('click',()=> this.moveBy(b.dataset.dir)));
+      // swipe
+      let sx=0,sy=0,down=false;
+      this.cv.addEventListener('pointerdown',e=>{down=true; sx=e.clientX; sy=e.clientY; this.cv.setPointerCapture(e.pointerId);});
+      this.cv.addEventListener('pointerup',e=>{
+        if(!down) return; down=false;
+        const dx=e.clientX-sx, dy=e.clientY-sy;
+        if(Math.abs(dx)<20 && Math.abs(dy)<20) return;
+        if(Math.abs(dx)>Math.abs(dy)) this.moveBy(dx>0?'E':'W'); else this.moveBy(dy>0?'S':'N');
+      });
+      this.load(0);
+    },
+    next(){ this.load((this.idx+1)%this.levels.length); },
+    load(i){
+      this.idx=i; const L=this.levels[i];
+      this.rows=L.rows; this.cols=L.cols; this.player={r:L.start[0],c:L.start[1]}; this.targets=L.targets;
+      this.cv.width=this.cols*this.cell; this.cv.height=this.rows*this.cell+28;
       this.draw();
-    },{passive:false});
-    this.canvas.addEventListener('pointermove',(e)=>{ if(this.activeIdx==null || !dragging) return; clearTimeout(pressTimer);
-      const {x,y}=this.xy(e); const g=this.toGrid(x,y); const p=this.pieces[this.activeIdx];
-      p.pos={x:g.c - this.dragOff[0], y:g.r - this.dragOff[1]}; this.draw();
-    },{passive:false});
-    this.canvas.addEventListener('pointerup',()=>{ clearTimeout(pressTimer);
-      if(this.activeIdx==null) return; dragging=false;
-      const p=this.pieces[this.activeIdx];
-      if(this.canPlace(p)){ this.place(p,this.activeIdx); this.onScore(2); pulse(this.canvas); }
-      this.draw(); if(this.isComplete()){ this.onScore(30); alert('🧩 Tauler completat!'); }
-    });
-  },
-  next(){ const n=LEVELS.pentomino.length; this.loadLevel((this.levelIdx+1)%n); },
-  loadLevel(i){
-    this.levelIdx=i; const L=LEVELS.pentomino[i];
-    this.rows=L.rows; this.cols=L.cols; this.canvas.width=this.cols*this.cell; this.canvas.height=this.rows*this.cell;
-    this.board=Array.from({length:this.rows},()=>Array(this.cols).fill(-1));
-    const base={ F:[[0,1],[1,0],[1,1],[1,2],[2,2]], L:[[0,0],[1,0],[2,0],[3,0],[3,1]], P:[[0,0],[0,1],[1,0],[1,1],[2,0]], T:[[0,0],[0,1],[0,2],[1,1],[2,1]], Z:[[0,0],[0,1],[1,1],[1,2],[1,3]], U:[[0,0],[0,2],[1,0],[1,1],[1,2]], V:[[0,0],[1,0],[2,0],[2,1],[2,2]] };
-    this.pieces = L.pieces.map(k=>({id:k,cells:base[k].map(p=>[...p]),pos:{x:-99,y:-99},color:this.randColor()}));
-    this.renderPallet(); this.activeIdx=null; this.pendingDrop=false; this.draw();
-  },
-  randColor(){ const cs=['#ef4444','#f59e0b','#10b981','#3b82f6','#a855f7','#ec4899','#14b8a6']; return sample(cs); },
-  renderPallet(){
-    this.pList.innerHTML='';
-    this.pieces.forEach((pc,idx)=>{
-      const c=document.createElement('canvas'); c.width=120; c.height=80; c.className='pixel border rounded bg-white dark:bg-slate-900';
-      const g=c.getContext('2d'); this.drawMini(g,pc);
-      c.addEventListener('pointerup',()=>{ this.activeIdx=idx; this.pendingDrop=true; pulse(c); });
-      c.addEventListener('click',()=>{ this.activeIdx=idx; this.pendingDrop=true; pulse(c); }); /* compat: click */
-      this.pList.appendChild(c);
-    });
-  },
-  drawMini(g,pc){ g.clearRect(0,0,120,80); const s=16; g.fillStyle=pc.color; pc.cells.forEach(([r,c])=> g.fillRect(10+c*s,10+r*s,s-2,s-2)); },
-  rotate(i){ const p=this.pieces[i]; p.cells=p.cells.map(([r,c])=>[c,-r]); const mr=Math.min(...p.cells.map(q=>q[0])), mc=Math.min(...p.cells.map(q=>q[1])); p.cells=p.cells.map(([r,c])=>[r-mr,c-mc]); },
-  reflect(i){ const p=this.pieces[i]; const mc=Math.max(...p.cells.map(q=>q[1])); p.cells=p.cells.map(([r,c])=>[r,mc-c]); },
-  xy(e){ const b=this.canvas.getBoundingClientRect(); return {x:(e.clientX-b.left), y:(e.clientY-b.top)}; },
-  toGrid(x,y){ return { c:Math.floor(x/this.cell), r:Math.floor(y/this.cell) }; },
-  hitPiece(r,c){ for(let i=this.pieces.length-1;i>=0;i--){ const p=this.pieces[i]; for(const [rr,cc] of p.cells){ if(p.pos.y+rr===r && p.pos.x+cc===c) return i; } } return null; },
-  canPlace(p){ for(const [r,c] of p.cells){ const R=p.pos.y+r, C=p.pos.x+c; if(R<0||C<0||R>=this.rows||C>=this.cols) return false; if(this.board[R][C]!==-1) return false; } return true; },
-  place(p,idx){ for(const [r,c] of p.cells){ this.board[p.pos.y+r][p.pos.x+c]=idx; } },
-  isComplete(){ for(let r=0;r<this.rows;r++) for(let c=0;c<this.cols;c++) if(this.board[r][c]===-1) return false; return true; },
-  draw(){
-    const g=this.ctx, cs=this.cell; g.clearRect(0,0,this.canvas.width,this.canvas.height);
-    g.strokeStyle='#e5e7eb'; for(let r=0;r<this.rows;r++) for(let c=0;c<this.cols;c++) g.strokeRect(c*cs,r*cs,cs,cs);
-    for(let r=0;r<this.rows;r++) for(let c=0;c<this.cols;c++){ const idx=this.board[r][c]; if(idx>=0){ g.fillStyle=this.pieces[idx].color; g.fillRect(c*cs+1,r*cs+1,cs-2,cs-2); } }
-    this.pieces.forEach((p)=>{ const anyInside = p.cells.some(([rr,cc])=>{ const R=p.pos.y+rr, C=p.pos.x+cc; return (R>=0&&C>=0&&R<this.rows&&C<this.cols); }); if(!anyInside) return;
-      g.fillStyle=p.color; p.cells.forEach(([rr,cc])=>{ const R=p.pos.y+rr, C=p.pos.x+cc; if(R>=0&&C>=0&&R<this.rows&&C<this.cols) g.fillRect(C*cs+1,R*cs+1,cs-2,cs-2); });
-    });
-  }
-};
+    },
+    moveBy(dir){ if(dir==='N') this.move(-1,0); if(dir==='S') this.move(1,0); if(dir==='W') this.move(0,-1); if(dir==='E') this.move(0,1); },
+    move(dr,dc){
+      this.player.r=Math.max(0,Math.min(this.rows-1,this.player.r+dr));
+      this.player.c=Math.max(0,Math.min(this.cols-1,this.player.c+dc));
+      this.draw();
+      if(this.targets>0 && (this.player.r===0||this.player.c===0||this.player.r===this.rows-1||this.player.c===this.cols-1)){
+        this.targets--; this.onScore(5); if(this.targets===0) alert('🎯 Nivell completat!');
+      }
+    },
+    draw(){
+      const g=this.ctx, cs=this.cell; g.clearRect(0,0,this.cv.width,this.cv.height);
+      g.strokeStyle='#e5e7eb';
+      for(let r=0;r<this.rows;r++) for(let c=0;c<this.cols;c++) g.strokeRect(c*cs, r*cs, cs, cs);
+      g.fillStyle='#2563eb'; g.fillRect(this.player.c*cs+4, this.player.r*cs+4, cs-8, cs-8);
+      g.fillStyle='#1f2937'; g.fillRect(0, this.rows*cs, this.cv.width, 28);
+      g.fillStyle='white'; g.font='12px system-ui'; g.fillText('🎯 pendents: '+this.targets, 8, this.rows*cs+18);
+    }
+  };
 
-/* ===== Nets ===== */
-const Nets={
-  name:'Paper Nets', container:null, canvas:null, ctx:null, levelIdx:0, angle:25,
-  hint:'Mou l’angle i toca “Valida”.',
-  init(root,onScore){
-    this.onScore=onScore; this.levelIdx=0;
-    const wrap=document.createElement('div'); wrap.className='flex flex-col gap-3';
-    wrap.innerHTML=`<div class="grid md:grid-cols-[1fr_auto] gap-3">
-        <canvas id="netcv" class="pixel border rounded-xl bg-white dark:bg-slate-900 shadow" width="560" height="360"></canvas>
-        <div class="card rounded-xl p-3 border shadow-sm">
-          <label class="block text-xs uppercase opacity-70 mb-1">Angle de plegat</label>
-          <input id="angle" type="range" min="0" max="90" value="25" class="w-48">
-          <div class="text-sm mt-2">Angle: <span id="angv">25</span>°</div>
-          <button id="validate" class="mt-3 rounded-xl px-4 py-2 text-sm font-semibold bg-gradient-to-r from-emerald-400 to-emerald-600 text-white border border-emerald-500/30">Valida</button>
-          <button id="nextNet" class="mt-2 rounded-xl px-4 py-2 text-sm font-semibold bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700">Següent</button>
-          <div class="text-xs opacity-70 mt-3" id="netLabel"></div>
-        </div></div>`;
-    root.appendChild(wrap);
-    this.container=wrap; this.canvas=wrap.querySelector('#netcv'); this.ctx=this.canvas.getContext('2d');
-    wrap.querySelector('#angle').addEventListener('input',(e)=>{ this.angle=+e.target.value; wrap.querySelector('#angv').textContent=this.angle; this.draw(); });
-    wrap.querySelector('#validate').addEventListener('pointerup',()=>this.validate());
-    wrap.querySelector('#nextNet').addEventListener('pointerup',()=>this.next());
-    this.loadLevel(0);
-  },
-  next(){ const n=LEVELS.nets.length; this.loadLevel((this.levelIdx+1)%n); },
-  loadLevel(i){ this.levelIdx=i; this.label=LEVELS.nets[i].label; this.draw(); },
-  validate(){ const L=LEVELS.nets[this.levelIdx]; if(L.valid){ this.onScore(10); alert('✅ És un desplegable vàlid.'); } else { this.onScore(-2); alert('❌ Aquest patró no plega a un cub.'); } },
-  draw(){
-    const ctx=this.ctx,W=this.canvas.width,H=this.canvas.height; ctx.clearRect(0,0,W,H);
-    const m=LEVELS.nets[this.levelIdx].layout; const nR=m.length, nC=Math.max(...m.map(r=>r.length));
-    const size=Math.min((W-80)/nC,(H-80)/nR); const ox=(W-nC*size)/2, oy=(H-nR*size)/2;
-    ctx.strokeStyle='#94a3b8'; ctx.lineWidth=1.5;
-    for(let r=0;r<nR;r++) for(let c=0;c<m[r].length;c++) if(m[r][c]){ ctx.strokeRect(ox+c*size, oy+r*size, size, size); ctx.fillStyle='rgba(14,165,233,0.08)'; ctx.fillRect(ox+c*size, oy+r*size, size, size); }
-    const lift=Math.sin(this.angle*Math.PI/180)*size;
-    let cr=0,cc=0; outer: for(let r=0;r<nR;r++) for(let c=0;c<nC;c++) if(m[r][c]){ cr=r; cc=c; break outer; }
-    ctx.fillStyle='rgba(16,185,129,0.15)'; ctx.fillRect(ox+cc*size, oy+cr*size-lift, size, size);
-    ctx.strokeStyle='#10b981'; ctx.strokeRect(ox+cc*size, oy+cr*size-lift, size, size);
-    ctx.fillStyle='#334155'; ctx.font='12px system-ui'; ctx.fillText(this.label||'', 10, H-10);
-  }
-};
+  /* ==========================================================
+     JOC 4 — Pentomino Packing (touch-first senzill)
+     ========================================================== */
+  const Pentomino = {
+    name:'Pentomino Packing', timeLimit:null,
+    level:0, rows:0, cols:0, cell:30, board:[], pieces:[], active:null, dragOff:[0,0], pendingDrop:false,
+    hint:'Toca una peça → toca tauler → arrossega. Doble-tap: rotar · Mantén: reflectir.',
+    baseShapes: {
+      F:[[0,1],[1,0],[1,1],[1,2],[2,2]],
+      L:[[0,0],[1,0],[2,0],[3,0],[3,1]],
+      P:[[0,0],[0,1],[1,0],[1,1],[2,0]],
+      T:[[0,0],[0,1],[0,2],[1,1],[2,1]],
+      Z:[[0,0],[0,1],[1,1],[1,2],[1,3]],
+      U:[[0,0],[0,2],[1,0],[1,1],[1,2]],
+      V:[[0,0],[1,0],[2,0],[2,1],[2,2]]
+    },
+    levels:[
+      {rows:5,cols:5,pieces:['F','L','P','T','Z']},
+      {rows:6,cols:6,pieces:['F','L','P','T','Z','U','V']}
+    ],
+    init(root,onScore){
+      this.onScore=onScore; this.level=0;
+      const wrap=document.createElement('div');
+      wrap.innerHTML=`
+        <div style="display:grid;grid-template-columns:1fr 220px;gap:12px;align-items:start">
+          <canvas id="pento"></canvas>
+          <div>
+            <div id="pList" style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:8px"></div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap">
+              <button id="btnRot" class="btn">↻ Rotar</button>
+              <button id="btnFlip" class="btn">⇋ Reflectir</button>
+              <button id="btnResetP" class="btn">Reinicia</button>
+            </div>
+            <p class="muted" style="margin-top:6px">Consell: doble-tap = rotar · mantenir = reflectir</p>
+          </div>
+        </div>`;
+      root.appendChild(wrap);
+      this.cv = $('#pento', wrap); this.ctx=this.cv.getContext('2d'); this.pList=$('#pList', wrap);
+      $('#btnRot', wrap).addEventListener('click',()=>{ if(this.active!=null){ this.rotate(this.active); this.draw(); }});
+      $('#btnFlip', wrap).addEventListener('click',()=>{ if(this.active!=null){ this.reflect(this.active); this.draw(); }});
+      $('#btnResetP', wrap).addEventListener('click',()=> this.load(this.level));
+      this.load(0);
 
-/* ===== Registre i boot ===== */
-const GAMES={ rotation_rush:RotationRush, symmetry_painter:SymmetryPainter, map_hunt:MapHunt, pentomino:Pentomino, nets:Nets };
-window.GAMES=GAMES; window.startGame=startGame; window.showHub=showHub;
-window.state=state; window.setScore=setScore; window.setTime=setTime;
+      // Gestos
+      let pressTimer=null, lastTap=0, dragging=false;
+      this.cv.addEventListener('pointerdown',(e)=>{ e.preventDefault();
+        const {x,y}=this.xy(e); const g=this.toGrid(x,y);
+        if(this.pendingDrop && this.active!=null){ const p=this.pieces[this.active]; p.pos={x:g.c,y:g.r}; this.pendingDrop=false; }
+        this.active=this.hitPiece(g.r,g.c);
+        if(this.active!=null){ dragging=true; this.dragOff=[g.c-this.pieces[this.active].pos.x, g.r-this.pieces[this.active].pos.y]; }
+        const t=Date.now(); if(t-lastTap<280 && this.active!=null){ this.rotate(this.active); this.draw(); lastTap=0; return; } lastTap=t;
+        clearTimeout(pressTimer); pressTimer=setTimeout(()=>{ if(this.active!=null){ this.reflect(this.active); this.draw(); } },400);
+        this.cv.setPointerCapture(e.pointerId);
+      },{passive:false});
+      this.cv.addEventListener('pointermove',(e)=>{ if(this.active==null || !dragging) return; clearTimeout(pressTimer);
+        const {x,y}=this.xy(e); const g=this.toGrid(x,y); const p=this.pieces[this.active];
+        p.pos={x:g.c - this.dragOff[0], y:g.r - this.dragOff[1]}; this.draw();
+      });
+      this.cv.addEventListener('pointerup',()=>{ clearTimeout(pressTimer);
+        if(this.active==null) return; dragging=false;
+        const p=this.pieces[this.active];
+        if(this.canPlace(p)){ this.place(p,this.active); this.onScore(2); }
+        this.draw(); if(this.isComplete()){ this.onScore(30); alert('🧩 Tauler completat!'); }
+      });
+    },
+    next(){ this.load((this.level+1)%this.levels.length); },
+    load(i){
+      this.level=i; const L=this.levels[i];
+      this.rows=L.rows; this.cols=L.cols; this.cv.width=this.cols*this.cell; this.cv.height=this.rows*this.cell;
+      this.board=Array.from({length:this.rows},()=>Array(this.cols).fill(-1));
+      this.pieces = L.pieces.map(k=>({id:k,cells:this.baseShapes[k].map(p=>[...p]),pos:{x:-99,y:-99},color:this.rand()}));
+      this.renderPallet(); this.active=null; this.pendingDrop=false; this.draw();
+    },
+    renderPallet(){
+      this.pList.innerHTML='';
+      this.pieces.forEach((pc,idx)=>{
+        const c=document.createElement('canvas'); c.width=100; c.height=70; c.style.background='#fff'; c.style.border='1px solid var(--line)'; c.style.borderRadius='8px';
+        const g=c.getContext('2d'); const s=14; g.fillStyle=pc.color; pc.cells.forEach(([r,cx])=> g.fillRect(10+cx*s,10+r*s,s-2,s-2));
+        c.addEventListener('click',()=>{ this.active=idx; this.pendingDrop=true; });
+        this.pList.appendChild(c);
+      });
+    },
+    xy(e){ const b=this.cv.getBoundingClientRect(); return {x:e.clientX-b.left, y:e.clientY-b.top}; },
+    toGrid(x,y){ return { c:Math.floor(x/this.cell), r:Math.floor(y/this.cell) }; },
+    hitPiece(r,c){ for(let i=this.pieces.length-1;i>=0;i--){ const p=this.pieces[i]; for(const [rr,cc] of p.cells){ if(p.pos.y+rr===r && p.pos.x+cc===c) return i; } } return null; },
+    rotate(i){ const p=this.pieces[i]; p.cells=p.cells.map(([r,c])=>[c,-r]); const mr=Math.min(...p.cells.map(q=>q[0])), mc=Math.min(...p.cells.map(q=>q[1])); p.cells=p.cells.map(([r,c])=>[r-mr,c-mc]); },
+    reflect(i){ const p=this.pieces[i]; const mc=Math.max(...p.cells.map(q=>q[1])); p.cells=p.cells.map(([r,c])=>[r,mc-c]); },
+    rand(){ const cs=['#ef4444','#f59e0b','#10b981','#3b82f6','#a855f7','#ec4899','#14b8a6']; return cs[Math.floor(Math.random()*cs.length)]; },
+    canPlace(p){ for(const [r,c] of p.cells){ const R=p.pos.y+r, C=p.pos.x+c; if(R<0||C<0||R>=this.rows||C>=this.cols) return false; if(this.board[R][C]!==-1) return false; } return true; },
+    place(p,idx){ for(const [r,c] of p.cells){ this.board[p.pos.y+r][p.pos.x+c]=idx; } },
+    isComplete(){ for(let r=0;r<this.rows;r++) for(let c=0;c<this.cols;c++) if(this.board[r][c]===-1) return false; return true; },
+    draw(){
+      const g=this.ctx, cs=this.cell; g.clearRect(0,0,this.cv.width,this.cv.height);
+      g.strokeStyle='#e5e7eb'; for(let r=0;r<this.rows;r++) for(let c=0;c<this.cols;c++) g.strokeRect(c*cs,r*cs,cs,cs);
+      for(let r=0;r<this.rows;r++) for(let c=0;c<this.cols;c++){ const idx=this.board[r][c]; if(idx>=0){ g.fillStyle=this.pieces[idx].color; g.fillRect(c*cs+1,r*cs+1,cs-2,cs-2); } }
+      this.pieces.forEach((p)=>{ const anyInside = p.cells.some(([rr,cc])=>{ const R=p.pos.y+rr, C=p.pos.x+cc; return (R>=0&&C>=0&&R<this.rows&&C<this.cols); }); if(!anyInside) return;
+        g.fillStyle=p.color; p.cells.forEach(([rr,cc])=>{ const R=p.pos.y+rr, C=p.pos.x+cc; if(R>=0&&C>=0&&R<this.rows&&C<this.cols) g.fillRect(C*cs+1,R*cs+1,cs-2,cs-2); });
+      });
+    }
+  };
 
-/* === Recuperació del wiring clàssic (funcionava) === */
-function wire(){
-  document.querySelectorAll('[data-route]').forEach(b=>{
-    b.addEventListener('pointerup',()=> showHub());
-    b.addEventListener('click',()=> showHub()); /* compat */
-  });
-  document.querySelectorAll('[data-start]').forEach(b=>{
-    b.addEventListener('pointerup',()=> startGame(b.dataset.start));
-    b.addEventListener('click',()=> startGame(b.dataset.start)); /* compat */
-  });
-  const reset=document.getElementById('btnResetGlobal');
-  if(reset){
-    reset.addEventListener('pointerup',()=>{ if(state.game?.reset) state.game.reset(); setScore(0); setTime(state.game?.timeLimit ?? null); });
-    reset.addEventListener('click',()=>{ if(state.game?.reset) state.game.reset(); setScore(0); setTime(state.game?.timeLimit ?? null); });
-  }
-}
-if(document.readyState==='complete'||document.readyState==='interactive'){ setTimeout(wire,0);} else { document.addEventListener('DOMContentLoaded',wire); }
+  /* ==========================================================
+     JOC 5 — Paper Nets (cubs)
+     ========================================================== */
+  const Nets = {
+    name:'Paper Nets', timeLimit:null, idx:0, angle:25,
+    levels:[
+      {layout:[[0,1,0],[1,1,1],[0,1,0]],valid:true,label:'Creu (vàlid)'},
+      {layout:[[1,1,1,1,1,1]],valid:false,label:'Tira de 6 (no vàlid)'},
+      {layout:[[0,1,0],[1,1,1],[0,0,1]],valid:false,label:'T incomplet'}
+    ],
+    init(root,onScore){
+      this.onScore=onScore; this.idx=0;
+      const wrap=document.createElement('div');
+      wrap.innerHTML=`<div style="display:grid;grid-template-columns:1fr 220px;gap:10px;align-items:start">
+        <canvas id="netcv" width="520" height="340"></canvas>
+        <div>
+          <label class="muted">Angle: <span id="angv">25</span>°</label>
+          <input id="angle" type="range" min="0" max="90" value="25" style="width:100%">
+          <div style="display:flex;gap:6px;margin-top:8px">
+            <button id="validate" class="btn">Valida</button>
+            <button id="nextNet" class="btn">Següent</button>
+          </div>
+          <p id="netLabel" class="muted" style="margin-top:6px"></p>
+        </div>
+      </div>`;
+      root.appendChild(wrap);
+      this.cv=$('#netcv',wrap); this.ctx=this.cv.getContext('2d');
+      $('#angle',wrap).addEventListener('input',(e)=>{ this.angle=+e.target.value; $('#angv',wrap).textContent=this.angle; this.draw(); });
+      $('#validate',wrap).addEventListener('click',()=> this.validate());
+      $('#nextNet',wrap).addEventListener('click',()=> this.next());
+      this.load(0);
+    },
+    next(){ this.load((this.idx+1)%this.levels.length); },
+    load(i){ this.idx=i; $('#netLabel').textContent=this.levels[i].label; this.draw(); },
+    validate(){ const L=this.levels[this.idx]; if(L.valid){ this.onScore(10); alert('✅ És un desplegable vàlid.'); } else { this.onScore(-2); alert('❌ No plega a un cub.'); } },
+    draw(){
+      const ctx=this.ctx,W=this.cv.width,H=this.cv.height; ctx.clearRect(0,0,W,H);
+      const m=this.levels[this.idx].layout; const nR=m.length, nC=Math.max(...m.map(r=>r.length));
+      const s=Math.min((W-60)/nC,(H-60)/nR); const ox=(W-nC*s)/2, oy=(H-nR*s)/2;
+      ctx.strokeStyle='#9ca3af'; ctx.lineWidth=1.5;
+      for(let r=0;r<nR;r++) for(let c=0;c<m[r].length;c++) if(m[r][c]){ ctx.strokeRect(ox+c*s, oy+r*s, s, s); ctx.fillStyle='rgba(37,99,235,0.08)'; ctx.fillRect(ox+c*s, oy+r*s, s, s); }
+      const lift=Math.sin(this.angle*Math.PI/180)*s;
+      // pinta el primer quadrat "alçat"
+      let cr=0,cc=0; outer: for(let r=0;r<nR;r++) for(let c=0;c<nC;c++) if(m[r][c]){ cr=r; cc=c; break outer; }
+      ctx.fillStyle='rgba(16,185,129,0.15)'; ctx.fillRect(ox+cc*s, oy+cr*s-lift, s, s);
+      ctx.strokeStyle='#10b981'; ctx.strokeRect(ox+cc*s, oy+cr*s-lift, s, s);
+    }
+  };
+
+  /* ---------- Registre de jocs ---------- */
+  const GAMES = {
+    rotation_rush: RotationRush,
+    symmetry_painter: SymmetryPainter,
+    map_hunt: MapHunt,
+    pentomino: Pentomino,
+    nets: Nets
+  };
+
+  /* ---------- Helpers locals ---------- */
+  function clamp(v,min,max){ return Math.max(min, Math.min(max, v)); }
+  window.startGame = startGame; // (opcional per a debugging a consola)
+
+})();
 </script>
 </body>
 </html>
