@@ -115,14 +115,14 @@
 </div>
 
 <script>
-/* ===== tema ===== */
+/* ===== Tema ===== */
 (function(){ const root=document.documentElement;
   const saved=localStorage.getItem('theme');
   const prefers=matchMedia('(prefers-color-scheme: dark)').matches;
   if((saved==='dark')||(!saved&&prefers)) root.classList.add('dark');
 })();
 
-/* ===== helpers ===== */
+/* ===== Helpers ===== */
 const el=s=>document.querySelector(s);
 const $hub=el('#hub'), $scene=el('#scene'), $root=el('#gameRoot');
 const $uiName=el('#uiGameName'), $uiScore=el('#uiScore'), $uiTime=el('#uiTime'), $msg=el('#globalMessage');
@@ -131,7 +131,7 @@ const sample=arr=>arr[Math.floor(Math.random()*arr.length)];
 const avg=arr=>arr.reduce((a,b)=>a+b,0)/arr.length;
 function pulse(n){n?.animate([{transform:'scale(1)'},{transform:'scale(1.03)'},{transform:'scale(1)'}],{duration:220,easing:'ease-out'})}
 
-/* ===== navegació i estat ===== */
+/* ===== Navegació i estat ===== */
 function showHub(){ clearTimer(); $scene.classList.add('hidden'); $hub.classList.remove('hidden'); $msg.textContent=''; }
 function showScene(){ $hub.classList.add('hidden'); $scene.classList.remove('hidden'); }
 
@@ -148,8 +148,9 @@ function startGame(id){
   $root.innerHTML=''; showScene(); G.init($root,(d)=> setScore(Math.max(0,state.score+d)));
   if(G.timeLimit) startTimer(); $msg.textContent=G.hint??'';
 }
+el('#btnNext')?.addEventListener('pointerup',()=>{ state.game?.next && state.game.next(); });
 
-/* ===== nivells ===== */
+/* ===== Nivells ===== */
 const LEVELS={
   rotation_rush:{
     rounds:10, angles:[90,180,270],
@@ -237,6 +238,7 @@ const RotationRush = {
       const off = ok ? {dx:0,dy:0} : {dx:(Math.random()<.5? -6:6), dy:(Math.random()<.5? -6:6)};
       drawPoly(ctx,this.basePoly,{x:70+off.dx,y:70+off.dy,rot:angle,stroke:'#0f172a'});
       cv.addEventListener('pointerup',()=> this.pick(ok), {passive:true});
+      cv.addEventListener('click',()=> this.pick(ok)); /* compat: click */
       this.choicesWrap.appendChild(cv);
     }
   },
@@ -311,7 +313,10 @@ const MapHunt={
       </div>`;
     root.appendChild(wrap);
     this.container=wrap; this.canvas=wrap.querySelector('#mh'); this.ctx=this.canvas.getContext('2d');
-    wrap.querySelectorAll('[data-dir]').forEach(b=> b.addEventListener('pointerup',()=>this.moveByDir(b.dataset.dir)));
+    wrap.querySelectorAll('[data-dir]').forEach(b=>{
+      b.addEventListener('pointerup',()=>this.moveByDir(b.dataset.dir));
+      b.addEventListener('click',()=>this.moveByDir(b.dataset.dir));
+    });
     this.loadLevel(0);
     let sx=0, sy=0, down=false;
     this.canvas.addEventListener('pointerdown',e=>{ down=true; sx=e.clientX; sy=e.clientY; this.canvas.setPointerCapture(e.pointerId); });
@@ -348,7 +353,7 @@ const MapHunt={
   }
 };
 
-/* ===== Pentomino (dinàmica corregida) ===== */
+/* ===== Pentomino ===== */
 const Pentomino={
   name:'Pentomino Packing', container:null, canvas:null, ctx:null, levelIdx:0,
   cell:32, rows:0, cols:0, board:[], pieces:[], activeIdx:null, dragOff:[0,0], pendingDrop:false,
@@ -418,6 +423,7 @@ const Pentomino={
       const c=document.createElement('canvas'); c.width=120; c.height=80; c.className='pixel border rounded bg-white dark:bg-slate-900';
       const g=c.getContext('2d'); this.drawMini(g,pc);
       c.addEventListener('pointerup',()=>{ this.activeIdx=idx; this.pendingDrop=true; pulse(c); });
+      c.addEventListener('click',()=>{ this.activeIdx=idx; this.pendingDrop=true; pulse(c); }); /* compat: click */
       this.pList.appendChild(c);
     });
   },
@@ -481,28 +487,28 @@ const Nets={
   }
 };
 
-/* ===== registre ===== */
+/* ===== Registre i boot ===== */
 const GAMES={ rotation_rush:RotationRush, symmetry_painter:SymmetryPainter, map_hunt:MapHunt, pentomino:Pentomino, nets:Nets };
-window.startGame=startGame; window.showHub=showHub;
+window.GAMES=GAMES; window.startGame=startGame; window.showHub=showHub;
 window.state=state; window.setScore=setScore; window.setTime=setTime;
 
-/* ===== 💡 DELEGACIÓ GLOBAL DE BOTONS (robust) ===== */
-document.addEventListener('pointerup',(e)=>{
-  const startBtn = e.target.closest && e.target.closest('[data-start]');
-  if(startBtn){ e.preventDefault(); try{ startGame(startBtn.dataset.start); }catch(err){ console.error(err); alert('S\'ha produït un error inicialitzant el joc.'); } return; }
-  const routeBtn = e.target.closest && e.target.closest('[data-route="hub"]');
-  if(routeBtn){ e.preventDefault(); try{ showHub(); }catch(err){ console.error(err); } return; }
-  if(e.target.id==='btnNext'){ e.preventDefault(); try{ state.game?.next && state.game.next(); }catch(err){ console.error(err); } }
-});
-
-/* ===== reset global opcional ===== */
-document.getElementById('btnResetGlobal')?.addEventListener('pointerup',()=>{
-  try{ if(state.game?.reset) state.game.reset(); setScore(0); setTime(state.game?.timeLimit ?? null); }catch(err){ console.error(err); }
-});
-
-/* ===== utilitats temporitzador ===== */
-function clearTimer(){ if(state.timerId){ clearInterval(state.timerId); state.timerId=null; } }
-function startTimer(){ clearTimer(); if(state.timeLeft==null) return; state.timerId=setInterval(()=>{ state.timeLeft--; $uiTime.textContent=state.timeLeft; if(state.timeLeft<=0) endGame('lose'); },1000); }
+/* === Recuperació del wiring clàssic (funcionava) === */
+function wire(){
+  document.querySelectorAll('[data-route]').forEach(b=>{
+    b.addEventListener('pointerup',()=> showHub());
+    b.addEventListener('click',()=> showHub()); /* compat */
+  });
+  document.querySelectorAll('[data-start]').forEach(b=>{
+    b.addEventListener('pointerup',()=> startGame(b.dataset.start));
+    b.addEventListener('click',()=> startGame(b.dataset.start)); /* compat */
+  });
+  const reset=document.getElementById('btnResetGlobal');
+  if(reset){
+    reset.addEventListener('pointerup',()=>{ if(state.game?.reset) state.game.reset(); setScore(0); setTime(state.game?.timeLimit ?? null); });
+    reset.addEventListener('click',()=>{ if(state.game?.reset) state.game.reset(); setScore(0); setTime(state.game?.timeLimit ?? null); });
+  }
+}
+if(document.readyState==='complete'||document.readyState==='interactive'){ setTimeout(wire,0);} else { document.addEventListener('DOMContentLoaded',wire); }
 </script>
 </body>
 </html>
