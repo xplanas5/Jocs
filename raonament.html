@@ -110,7 +110,7 @@
   </main>
 
   <footer class="mt-auto text-center p-4 text-xs text-slate-600 dark:text-slate-400 px-safe">
-    <p>Pack de jocs · Sense tecles · Llicència: CC BY-NC-SA 4.0</p>
+    <p>Pack de jocs per a GitHub Pages · Sense dependències extra. Llicència: CC BY-NC-SA 4.0</p>
   </footer>
 </div>
 
@@ -153,7 +153,13 @@ el('#btnNext')?.addEventListener('click',()=>{ state.game?.next && state.game.ne
 /* ===== nivells ===== */
 const LEVELS={
   rotation_rush:{ rounds:10, angles:[90,180,270], allowReflections:true,
-    shapeset:[ [[0,0],[60,0],[60,60],[0,60]], [[0,0],[80,0],[40,60]], [[0,0],[70,0],[90,40],[20,60]], [[0,0],[90,0],[90,30],[0,60]], [[0,0],[60,0],[80,30],[40,60],[0,40]] ] },
+    // ← sense quadrats
+    shapeset:[
+      [[0,0],[80,0],[40,60]],                                  // triangle
+      [[0,0],[70,0],[90,40],[20,60]],                          // quadrilàter irregular
+      [[0,0],[90,0],[90,30],[0,60]],                           // trapezi
+      [[0,0],[60,0],[80,30],[40,60],[0,40]]                    // pentàgon
+    ] },
   symmetry_painter:[
     {rows:12,cols:16,target:(r,c)=>(r>2&&r<9&&c<4&&(r+c)%2===0)},
     {rows:14,cols:20,target:(r,c)=>((r>3&&r<10&&c<6)&&(r%3===0||c%2===0))},
@@ -175,40 +181,77 @@ const LEVELS={
   ]
 };
 
-/* ===== joc 1: rotation rush (tap) ===== */
-const RotationRush={
-  name:'Rotation Rush', timeLimit:20, container:null, ctx:null, choicesWrap:null, round:0, correctIndex:0, basePoly:null,
+/* ===== joc 1: Rotation Rush (sense quadrats, resposta sempre rotada) ===== */
+const RotationRush = {
+  name:'Rotation Rush', timeLimit:20,
+  container:null, baseCtx:null, choicesWrap:null,
+  round:0, basePoly:null, correctIndex:0, correctAngle:90,
   init(root,onScore){
     this.onScore=onScore; this.round=0;
-    const wrap=document.createElement('div'); wrap.className='grid md:grid-cols-2 gap-4';
-    wrap.innerHTML=`<div class="flex flex-col items-center gap-2"><canvas id="rr-base" width="260" height="260" class="pixel border rounded-xl bg-white dark:bg-slate-900"></canvas><div class="text-sm text-slate-500">Toca la rotació correcta</div></div><div><div id="rr-choices" class="grid grid-cols-2 gap-3"></div></div>`;
-    root.appendChild(wrap); this.container=wrap; this.ctx=wrap.querySelector('#rr-base').getContext('2d'); this.choicesWrap=wrap.querySelector('#rr-choices'); this.next();
+    this.container=document.createElement('div');
+    this.container.className='grid md:grid-cols-2 gap-4';
+    this.container.innerHTML=`
+      <div class="flex flex-col items-center gap-2">
+        <canvas id="rr-base" width="260" height="260" class="pixel border rounded-xl bg-white dark:bg-slate-900"></canvas>
+        <div class="text-sm text-slate-500">Toca la rotació correcta (90°, 180° o 270°)</div>
+      </div>
+      <div><div id="rr-choices" class="grid grid-cols-2 gap-3"></div></div>`;
+    root.appendChild(this.container);
+    const base=this.container.querySelector('#rr-base');
+    this.baseCtx = base ? base.getContext('2d') : null;
+    this.choicesWrap = this.container.querySelector('#rr-choices');
+    this.next();
   },
   reset(){ this.round=0; this.next(); },
   next(){
     setTime(this.timeLimit); startTimer();
     this.round++; if(this.round>LEVELS.rotation_rush.rounds){ endGame('win'); return; }
-    const polys=LEVELS.rotation_rush.shapeset; this.basePoly=sample(polys);
-    const ctx=this.ctx; ctx.clearRect(0,0,260,260); drawPoly(ctx,this.basePoly,{x:130,y:130,stroke:'#0f172a'});
-    this.choicesWrap.innerHTML=''; this.correctIndex=Math.floor(Math.random()*4);
+    const polys = LEVELS.rotation_rush.shapeset.filter(p=>!isSquare(p));
+    this.basePoly = sample(polys);
+    if (this.baseCtx){
+      this.baseCtx.clearRect(0,0,260,260);
+      drawPoly(this.baseCtx,this.basePoly,{x:130,y:130,stroke:'#0f172a'});
+    }
+    if (!this.choicesWrap) return;
+    this.choicesWrap.innerHTML='';
+    const angles=[90,180,270];
+    this.correctAngle = sample(angles);
+    this.correctIndex = Math.floor(Math.random()*4);
+    const used = new Set([this.correctAngle+'|no']);
     for(let i=0;i<4;i++){
-      const cv=document.createElement('canvas'); cv.width=140; cv.height=140; cv.className='pixel border rounded-xl bg-white dark:bg-slate-900 cursor-pointer';
-      const c=cv.getContext('2d'); const ok=i===this.correctIndex; const angle=ok?0:sample(LEVELS.rotation_rush.angles); const mirror=!ok && LEVELS.rotation_rush.allowReflections && Math.random()<0.33;
-      drawPoly(c,this.basePoly,{x:70,y:70,rot:angle,mirror,stroke:'#0f172a'});
-      cv.addEventListener('pointerup',()=> this.pick(ok),{passive:true});
+      const cv=document.createElement('canvas'); cv.width=140; cv.height=140;
+      cv.className='pixel border rounded-xl bg-white dark:bg-slate-900 cursor-pointer';
+      const ctx=cv.getContext('2d');
+      const ok = i===this.correctIndex;
+      let angle, mirror=false;
+      if(ok){ angle=this.correctAngle; mirror=false; }
+      else{
+        do{ angle=sample(angles); mirror=Math.random()<0.5; }
+        while(used.has(angle+'|'+(mirror?'m':'no')));
+        used.add(angle+'|'+(mirror?'m':'no'));
+      }
+      drawPoly(ctx,this.basePoly,{x:70,y:70,rot:angle,mirror,stroke:'#0f172a'});
+      cv.addEventListener('pointerup',()=> this.pick(ok), {passive:true});
       this.choicesWrap.appendChild(cv);
     }
   },
-  pick(ok){ if(ok){ this.onScore(10); pulse(this.container); this.next(); } else { this.onScore(-2);} }
+  pick(ok){ if(ok){ this.onScore(10); pulse(this.container); this.next(); } else { this.onScore(-2); } }
 };
+function isSquare(poly){
+  if (!poly || poly.length !== 4) return false;
+  const xs=poly.map(p=>p[0]), ys=poly.map(p=>p[1]);
+  const w=Math.max(...xs)-Math.min(...xs), h=Math.max(...ys)-Math.min(...ys);
+  return Math.abs(w-h)<0.0001;
+}
 function drawPoly(ctx,poly,{x=0,y=0,rot=0,mirror=false,stroke='#000'}={}){
   ctx.save(); ctx.translate(x,y); if(mirror) ctx.scale(-1,1); ctx.rotate(rot*Math.PI/180);
-  ctx.beginPath(); const cx=avg(poly.map(p=>p[0])), cy=avg(poly.map(p=>p[1]));
-  ctx.moveTo(poly[0][0]-cx, poly[0][1]-cy); for(let i=1;i<poly.length;i++) ctx.lineTo(poly[i][0]-cx, poly[i][1]-cy);
+  const cx=avg(poly.map(p=>p[0])), cy=avg(poly.map(p=>p[1]));
+  ctx.beginPath(); ctx.moveTo(poly[0][0]-cx, poly[0][1]-cy);
+  for(let i=1;i<poly.length;i++) ctx.lineTo(poly[i][0]-cx, poly[i][1]-cy);
   ctx.closePath(); ctx.strokeStyle=stroke; ctx.lineWidth=2; ctx.stroke(); ctx.restore();
 }
 
-/* ===== joc 2: symmetry painter (drag pintar) ===== */
+/* ===== joc 2: Symmetry Painter (drag pintar) ===== */
 const SymmetryPainter={
   name:'Symmetry Painter', container:null, gridEl:null, levelIndex:0, grid:[], targetMask:[], rows:0, cols:0,
   hint:'Arrossega per pintar. Només a la meitat dreta.',
@@ -226,18 +269,15 @@ const SymmetryPainter={
   },
   render(){
     const g=this.gridEl; g.innerHTML=''; g.style.display='grid'; g.style.gridTemplateColumns=`repeat(${this.cols}, 26px)`;
-    let painting=false;
-    const toggle=(r,c)=>{ if(c<Math.floor(this.cols/2)) return; this.grid[r][c]=this.grid[r][c]?0:1; };
-    for(let r=0;r<this.rows;r++){
-      for(let c=0;c<this.cols;c++){
-        const d=document.createElement('div'); d.className='cell';
-        if(this.targetMask[r][c]===1) d.classList.add('hint');
-        if(this.grid[r][c]===1) d.classList.add('on');
-        d.addEventListener('pointerdown',(e)=>{ e.preventDefault(); painting=true; toggle(r,c); this.render(); },{passive:false});
-        d.addEventListener('pointerenter',()=>{ if(painting){ toggle(r,c); this.render(); }});
-        document.addEventListener('pointerup',()=> painting=false, {once:false});
-        g.appendChild(d);
-      }
+    let painting=false; const toggle=(r,c)=>{ if(c<Math.floor(this.cols/2)) return; this.grid[r][c]=this.grid[r][c]?0:1; };
+    for(let r=0;r<this.rows;r++) for(let c=0;c<this.cols;c++){
+      const d=document.createElement('div'); d.className='cell';
+      if(this.targetMask[r][c]===1) d.classList.add('hint');
+      if(this.grid[r][c]===1) d.classList.add('on');
+      d.addEventListener('pointerdown',(e)=>{ e.preventDefault(); painting=true; toggle(r,c); this.render(); },{passive:false});
+      d.addEventListener('pointerenter',()=>{ if(painting){ toggle(r,c); this.render(); }});
+      document.addEventListener('pointerup',()=> painting=false, {once:false});
+      g.appendChild(d);
     }
     this.checkWin();
   },
@@ -249,7 +289,7 @@ const SymmetryPainter={
   }
 };
 
-/* ===== joc 3: map hunt (swipe + D-pad) ===== */
+/* ===== joc 3: Map Hunt (swipe + D-pad) ===== */
 const MapHunt={
   name:'Map Hunt', container:null, canvas:null, ctx:null, levelIndex:0, rows:0, cols:0, cellSize:36, player:{r:0,c:0}, targetsLeft:0, hints:[],
   hint:'Llisca sobre el mapa o toca el D-pad.',
@@ -274,7 +314,6 @@ const MapHunt={
     this.container=wrap; this.canvas=wrap.querySelector('#mh'); this.ctx=this.canvas.getContext('2d');
     wrap.querySelectorAll('[data-dir]').forEach(b=> b.addEventListener('pointerup',()=>this.moveByDir(b.dataset.dir)));
     this.loadLevel(0);
-
     // SWIPE
     let sx=0, sy=0, down=false;
     this.canvas.addEventListener('pointerdown',e=>{ down=true; sx=e.clientX; sy=e.clientY; this.canvas.setPointerCapture(e.pointerId); });
@@ -311,7 +350,7 @@ const MapHunt={
   }
 };
 
-/* ===== joc 4: pentomino (gestos) ===== */
+/* ===== joc 4: Pentomino (gestos) ===== */
 const Pentomino={
   name:'Pentomino Packing', container:null, canvas:null, ctx:null, levelIdx:0,
   cell:32, rows:0, cols:0, board:[], pieces:[], activeIdx:null, dragOff:[0,0],
@@ -337,38 +376,31 @@ const Pentomino={
     this.container=wrap; this.canvas=wrap.querySelector('#pento'); this.ctx=this.canvas.getContext('2d'); this.pList=wrap.querySelector('#pList');
     this.loadLevel(0);
 
-    // Botons de la barra d’eines
     wrap.querySelector('#btnRot').addEventListener('pointerup',()=>{ if(this.activeIdx!=null){ this.rotate(this.activeIdx); this.draw(); }});
     wrap.querySelector('#btnFlip').addEventListener('pointerup',()=>{ if(this.activeIdx!=null){ this.reflect(this.activeIdx); this.draw(); }});
     wrap.querySelector('#btnResetP').addEventListener('pointerup',()=> this.loadLevel(this.levelIdx));
 
-    // Pointer per arrossegar
+    // Pointer per arrossegar + gestos
     let pressTimer=null, lastTap=0;
-    const onDown=(e)=>{ e.preventDefault();
+    this.canvas.addEventListener('pointerdown',(e)=>{ e.preventDefault();
       const {x,y}=this.xy(e); const g=this.toGrid(x,y);
       this.activeIdx=this.hitPiece(g.r,g.c);
       if(this.activeIdx!=null){ this.dragOff=[g.c-this.pieces[this.activeIdx].pos.x, g.r-this.pieces[this.activeIdx].pos.y]; }
-      // gestos: doble-tap (rotar)
       const t=Date.now(); if(t-lastTap<280 && this.activeIdx!=null){ this.rotate(this.activeIdx); this.draw(); lastTap=0; return; } lastTap=t;
-      // long-press (reflectir)
-      clearTimeout(pressTimer);
-      pressTimer=setTimeout(()=>{ if(this.activeIdx!=null){ this.reflect(this.activeIdx); this.draw(); } },400);
+      clearTimeout(pressTimer); pressTimer=setTimeout(()=>{ if(this.activeIdx!=null){ this.reflect(this.activeIdx); this.draw(); } },400);
       this.canvas.setPointerCapture(e.pointerId);
-    };
-    const onMove=(e)=>{ if(this.activeIdx==null) return; clearTimeout(pressTimer);
+    },{passive:false});
+    this.canvas.addEventListener('pointermove',(e)=>{ if(this.activeIdx==null) return; clearTimeout(pressTimer);
       const {x,y}=this.xy(e); const g=this.toGrid(x,y); const p=this.pieces[this.activeIdx];
       p.pos={x:g.c - this.dragOff[0], y:g.r - this.dragOff[1]}; this.draw();
-    };
-    const onUp=(e)=>{ clearTimeout(pressTimer);
+    },{passive:false});
+    this.canvas.addEventListener('pointerup',()=>{ clearTimeout(pressTimer);
       if(this.activeIdx==null) return;
       const p=this.pieces[this.activeIdx];
       if(this.canPlace(p)){ this.place(p,this.activeIdx); this.onScore(2); pulse(this.canvas); }
       this.activeIdx=null; this.draw();
       if(this.isComplete()){ this.onScore(30); alert('🧩 Tauler completat!'); }
-    };
-    this.canvas.addEventListener('pointerdown',onDown,{passive:false});
-    this.canvas.addEventListener('pointermove',onMove,{passive:false});
-    this.canvas.addEventListener('pointerup',onUp);
+    });
   },
   next(){ const n=LEVELS.pentomino.length; this.loadLevel((this.levelIdx+1)%n); },
   loadLevel(i){
@@ -407,7 +439,7 @@ const Pentomino={
   }
 };
 
-/* ===== joc 5: nets (tap) ===== */
+/* ===== joc 5: Nets ===== */
 const Nets={
   name:'Paper Nets', container:null, canvas:null, ctx:null, levelIdx:0, angle:25,
   hint:'Mou l’angle i toca “Valida”.',
@@ -440,7 +472,7 @@ const Nets={
     const size=Math.min((W-80)/nC,(H-80)/nR); const ox=(W-nC*size)/2, oy=(H-nR*size)/2;
     ctx.strokeStyle='#94a3b8'; ctx.lineWidth=1.5;
     for(let r=0;r<nR;r++) for(let c=0;c<m[r].length;c++) if(m[r][c]){ ctx.strokeRect(ox+c*size, oy+r*size, size, size); ctx.fillStyle='rgba(14,165,233,0.08)'; ctx.fillRect(ox+c*size, oy+r*size, size, size); }
-    const lift=Math.sin(this.angle*Math.PI/180)*size; // pseudo 3D
+    const lift=Math.sin(this.angle*Math.PI/180)*size;
     let cr=0,cc=0; outer: for(let r=0;r<nR;r++) for(let c=0;c<nC;c++) if(m[r][c]){ cr=r; cc=c; break outer; }
     ctx.fillStyle='rgba(16,185,129,0.15)'; ctx.fillRect(ox+cc*size, oy+cr*size-lift, size, size);
     ctx.strokeStyle='#10b981'; ctx.strokeRect(ox+cc*size, oy+cr*size-lift, size, size);
