@@ -153,25 +153,21 @@ el('#btnNext')?.addEventListener('click',()=>{ state.game?.next && state.game.ne
 /* ===== nivells ===== */
 const LEVELS={
   rotation_rush:{
-    rounds:10, angles:[90,180,270], allowReflections:true,
-    /* Figures més complexes i asimètriques (cap quadrat ni triangle regular) */
+    rounds:10, angles:[90,180,270],
+    /* Figures asimètriques (sense simetria pròpia) — cap mirall, cap rotació d'ordre 2/4 */
     shapeset:[
-      // Fletxa desplaçada
-      [[0,25],[48,25],[48,10],[100,40],[48,70],[48,55],[0,55]],
-      // Bota
-      [[0,60],[60,60],[60,40],[38,40],[38,6],[20,6],[20,40],[0,40]],
-      // Casa amb xemeneia a la dreta
-      [[0,60],[0,20],[22,0],[62,0],[82,20],[82,60],[52,60],[52,42],[30,42],[30,60]],
-      // Llamp
-      [[0,22],[56,22],[45,42],[74,42],[20,98],[32,62],[0,62]],
-      // Estendard amb escotadura
-      [[0,0],[86,0],[86,32],[64,20],[86,44],[86,72],[0,72]],
-      // Ganxo / U obert
-      [[0,0],[72,0],[72,20],[22,20],[22,82],[0,82]],
-      // Clau estilitzada
-      [[0,30],[52,30],[52,10],[82,10],[82,30],[62,30],[62,52],[0,52]],
-      // Rombe tort / cometa irregular
-      [[10,35],[55,0],[95,35],[68,42],[90,78],[48,60],[12,75],[28,44]]
+      // "Serrat" amb cua
+      [[0,0],[70,8],[56,26],[92,40],[52,58],[76,74],[18,68],[10,44],[28,36],[8,22]],
+      // "Gamma" amb sobresortit
+      [[0,0],[64,0],[64,18],[34,18],[34,58],[16,58],[16,20],[2,20]],
+      // "Cometa esbiaixat"
+      [[10,24],[58,0],[96,26],[68,36],[90,72],[44,54],[14,70],[30,40]],
+      // "Escaló amb bec"
+      [[0,10],[48,10],[48,26],[32,26],[32,40],[74,40],[74,58],[16,58],[16,28],[0,28]],
+      // "Cua de peix irregular"
+      [[0,18],[54,18],[72,6],[88,20],[40,32],[82,44],[62,60],[0,60],[10,40]],
+      // "Z trencat"
+      [[0,8],[64,8],[50,22],[80,22],[26,60],[44,44],[0,44]]
     ]
   },
   symmetry_painter:[
@@ -195,7 +191,7 @@ const LEVELS={
   ]
 };
 
-/* ===== joc 1: Rotation Rush (resposta sempre rotada) ===== */
+/* ===== Rotation Rush (resposta sempre rotada; sense miralls) ===== */
 const RotationRush = {
   name:'Rotation Rush', timeLimit:20,
   container:null, baseCtx:null, choicesWrap:null,
@@ -220,7 +216,7 @@ const RotationRush = {
   next(){
     setTime(this.timeLimit); startTimer();
     this.round++; if(this.round>LEVELS.rotation_rush.rounds){ endGame('win'); return; }
-    const polys = LEVELS.rotation_rush.shapeset.filter(p=>!isSquare(p));
+    const polys = LEVELS.rotation_rush.shapeset.slice(); // totes asimètriques
     this.basePoly = sample(polys);
     if (this.baseCtx){
       this.baseCtx.clearRect(0,0,260,260);
@@ -231,33 +227,34 @@ const RotationRush = {
     const angles=[90,180,270];
     this.correctAngle = sample(angles);
     this.correctIndex = Math.floor(Math.random()*4);
-    const used = new Set([this.correctAngle+'|no']);
+
+    // Distractors = la resta d’angles (sense miralls)
+    const distractors = angles.filter(a=>a!==this.correctAngle);
+    // si falten opcions, repetim algun angle amb petit "jitter" visual (trasllat) perquè no siguin idèntiques
+    const opts = [this.correctAngle, ...distractors];
+    while(opts.length<4) opts.push(sample(angles));
+
+    // per a quatre canvas
+    const usedAngles = new Set();
     for(let i=0;i<4;i++){
       const cv=document.createElement('canvas'); cv.width=140; cv.height=140;
       cv.className='pixel border rounded-xl bg-white dark:bg-slate-900 cursor-pointer';
       const ctx=cv.getContext('2d');
       const ok = i===this.correctIndex;
-      let angle, mirror=false;
-      if(ok){ angle=this.correctAngle; mirror=false; }
-      else{
-        // Distractors variats: angles diferents i, de vegades, mirall
-        do{ angle=sample(angles); mirror=Math.random()<0.5; }
-        while(used.has(angle+'|'+(mirror?'m':'no')));
-        used.add(angle+'|'+(mirror?'m':'no'));
-      }
-      drawPoly(ctx,this.basePoly,{x:70,y:70,rot:angle,mirror,stroke:'#0f172a'});
+      let angle = ok ? this.correctAngle : opts.shift();
+      // assegura’ns que no repetim el mateix angle dues vegades visualment
+      while(usedAngles.has(angle)) angle = sample(angles);
+      usedAngles.add(angle);
+
+      // petit desplaçament per evitar alineacions massa similars
+      const off = ok ? {dx:0,dy:0} : {dx:(Math.random()<.5? -6:6), dy:(Math.random()<.5? -6:6)};
+      drawPoly(ctx,this.basePoly,{x:70+off.dx,y:70+off.dy,rot:angle,mirror:false,stroke:'#0f172a'});
       cv.addEventListener('pointerup',()=> this.pick(ok), {passive:true});
       this.choicesWrap.appendChild(cv);
     }
   },
   pick(ok){ if(ok){ this.onScore(10); pulse(this.container); this.next(); } else { this.onScore(-2); } }
 };
-function isSquare(poly){
-  if (!poly || poly.length !== 4) return false;
-  const xs=poly.map(p=>p[0]), ys=poly.map(p=>p[1]);
-  const w=Math.max(...xs)-Math.min(...xs), h=Math.max(...ys)-Math.min(...ys);
-  return Math.abs(w-h)<0.0001;
-}
 function drawPoly(ctx,poly,{x=0,y=0,rot=0,mirror=false,stroke='#000'}={}){
   ctx.save(); ctx.translate(x,y); if(mirror) ctx.scale(-1,1); ctx.rotate(rot*Math.PI/180);
   const cx=avg(poly.map(p=>p[0])), cy=avg(poly.map(p=>p[1]));
@@ -266,7 +263,7 @@ function drawPoly(ctx,poly,{x=0,y=0,rot=0,mirror=false,stroke='#000'}={}){
   ctx.closePath(); ctx.strokeStyle=stroke; ctx.lineWidth=2; ctx.stroke(); ctx.restore();
 }
 
-/* ===== joc 2: Symmetry Painter (drag pintar) ===== */
+/* ===== Symmetry Painter (drag pintar) ===== */
 const SymmetryPainter={
   name:'Symmetry Painter', container:null, gridEl:null, levelIndex:0, grid:[], targetMask:[], rows:0, cols:0,
   hint:'Arrossega per pintar. Només a la meitat dreta.',
@@ -304,7 +301,7 @@ const SymmetryPainter={
   }
 };
 
-/* ===== joc 3: Map Hunt (swipe + D-pad) ===== */
+/* ===== Map Hunt (swipe + D-pad) ===== */
 const MapHunt={
   name:'Map Hunt', container:null, canvas:null, ctx:null, levelIndex:0, rows:0, cols:0, cellSize:36, player:{r:0,c:0}, targetsLeft:0, hints:[],
   hint:'Llisca sobre el mapa o toca el D-pad.',
@@ -365,11 +362,11 @@ const MapHunt={
   }
 };
 
-/* ===== joc 4: Pentomino (gestos) ===== */
+/* ===== Pentomino (gestos i dinàmica corregida) ===== */
 const Pentomino={
   name:'Pentomino Packing', container:null, canvas:null, ctx:null, levelIdx:0,
-  cell:32, rows:0, cols:0, board:[], pieces:[], activeIdx:null, dragOff:[0,0],
-  hint:'Arrossega. Doble-tap: rotar · Mantén: reflectir · Botons a la dreta.',
+  cell:32, rows:0, cols:0, board:[], pieces:[], activeIdx:null, dragOff:[0,0], pendingDrop:false,
+  hint:'Toca una peça del palet, després toca el tauler per “deixar-la” i arrossega. Doble-tap: rotar · Mantén: reflectir.',
   init(root,onScore){
     this.onScore=onScore; this.levelIdx=0;
     const wrap=document.createElement('div'); wrap.className='grid lg:grid-cols-[1fr_260px] gap-4 items-start';
@@ -385,7 +382,7 @@ const Pentomino={
           <button id="btnFlip" class="rounded-xl px-3 py-2 bg-white dark:bg-slate-900 border">⇋ Reflectir</button>
           <button id="btnResetP" class="rounded-xl px-3 py-2 bg-white dark:bg-slate-900 border">Reinicia</button>
         </div>
-        <div class="text-xs opacity-70 mt-3">Consells: doble-tap = rotar · mantenir 0,4 s = reflectir.</div>
+        <div class="text-xs opacity-70 mt-3">Consell: toca peça → toca tauler → arrossega.</div>
       </div>`;
     root.appendChild(wrap);
     this.container=wrap; this.canvas=wrap.querySelector('#pento'); this.ctx=this.canvas.getContext('2d'); this.pList=wrap.querySelector('#pList');
@@ -395,25 +392,36 @@ const Pentomino={
     wrap.querySelector('#btnFlip').addEventListener('pointerup',()=>{ if(this.activeIdx!=null){ this.reflect(this.activeIdx); this.draw(); }});
     wrap.querySelector('#btnResetP').addEventListener('pointerup',()=> this.loadLevel(this.levelIdx));
 
-    // Pointer per arrossegar + gestos
-    let pressTimer=null, lastTap=0;
+    // Gestos sobre el tauler
+    let pressTimer=null, lastTap=0, dragging=false;
     this.canvas.addEventListener('pointerdown',(e)=>{ e.preventDefault();
       const {x,y}=this.xy(e); const g=this.toGrid(x,y);
+      if(this.pendingDrop && this.activeIdx!=null){
+        // “deixar” la peça seleccionada al punt tocat
+        const p=this.pieces[this.activeIdx];
+        p.pos={x:g.c, y:g.r};
+        this.pendingDrop=false;
+      }
+      // cerca peça sota el dit (si n'hi ha)
       this.activeIdx=this.hitPiece(g.r,g.c);
-      if(this.activeIdx!=null){ this.dragOff=[g.c-this.pieces[this.activeIdx].pos.x, g.r-this.pieces[this.activeIdx].pos.y]; }
+      if(this.activeIdx!=null){ dragging=true; this.dragOff=[g.c-this.pieces[this.activeIdx].pos.x, g.r-this.pieces[this.activeIdx].pos.y]; }
       const t=Date.now(); if(t-lastTap<280 && this.activeIdx!=null){ this.rotate(this.activeIdx); this.draw(); lastTap=0; return; } lastTap=t;
       clearTimeout(pressTimer); pressTimer=setTimeout(()=>{ if(this.activeIdx!=null){ this.reflect(this.activeIdx); this.draw(); } },400);
       this.canvas.setPointerCapture(e.pointerId);
+      this.draw();
     },{passive:false});
-    this.canvas.addEventListener('pointermove',(e)=>{ if(this.activeIdx==null) return; clearTimeout(pressTimer);
+
+    this.canvas.addEventListener('pointermove',(e)=>{ if(this.activeIdx==null || !dragging) return; clearTimeout(pressTimer);
       const {x,y}=this.xy(e); const g=this.toGrid(x,y); const p=this.pieces[this.activeIdx];
       p.pos={x:g.c - this.dragOff[0], y:g.r - this.dragOff[1]}; this.draw();
     },{passive:false});
+
     this.canvas.addEventListener('pointerup',()=>{ clearTimeout(pressTimer);
       if(this.activeIdx==null) return;
+      dragging=false;
       const p=this.pieces[this.activeIdx];
       if(this.canPlace(p)){ this.place(p,this.activeIdx); this.onScore(2); pulse(this.canvas); }
-      this.activeIdx=null; this.draw();
+      this.draw();
       if(this.isComplete()){ this.onScore(30); alert('🧩 Tauler completat!'); }
     });
   },
@@ -423,9 +431,11 @@ const Pentomino={
     this.rows=L.rows; this.cols=L.cols; this.canvas.width=this.cols*this.cell; this.canvas.height=this.rows*this.cell;
     this.board=Array.from({length:this.rows},()=>Array(this.cols).fill(-1));
     const base={ F:[[0,1],[1,0],[1,1],[1,2],[2,2]], L:[[0,0],[1,0],[2,0],[3,0],[3,1]], P:[[0,0],[0,1],[1,0],[1,1],[2,0]], T:[[0,0],[0,1],[0,2],[1,1],[2,1]], Z:[[0,0],[0,1],[1,1],[1,2],[1,3]], U:[[0,0],[0,2],[1,0],[1,1],[1,2]], V:[[0,0],[1,0],[2,0],[2,1],[2,2]] };
-    const pick=L.pieces.map(k=>({id:k,cells:base[k].map(p=>[...p]),pos:{x:this.cols+1,y:1},color:this.randColor()}));
-    let iCol=0,iRow=0; pick.forEach(p=>{ p.pos={x:this.cols+1+(iCol%2)*3, y:1+Math.floor(iRow/2)*4}; iCol++; iRow++; });
-    this.pieces=pick; this.renderPallet(); this.draw();
+    this.pieces = L.pieces.map(k=>({id:k,cells:base[k].map(p=>[...p]),pos:{x:0,y:0},color:this.randColor()}));
+    // Render palet i selecció
+    this.renderPallet();
+    this.activeIdx=null; this.pendingDrop=false;
+    this.draw();
   },
   randColor(){ const cs=['#ef4444','#f59e0b','#10b981','#3b82f6','#a855f7','#ec4899','#14b8a6']; return sample(cs); },
   renderPallet(){
@@ -433,7 +443,7 @@ const Pentomino={
     this.pieces.forEach((pc,idx)=>{
       const c=document.createElement('canvas'); c.width=120; c.height=80; c.className='pixel border rounded bg-white dark:bg-slate-900';
       const g=c.getContext('2d'); this.drawMini(g,pc);
-      c.addEventListener('pointerup',()=>{ this.activeIdx=idx; pulse(c); });
+      c.addEventListener('pointerup',()=>{ this.activeIdx=idx; this.pendingDrop=true; pulse(c); });
       this.pList.appendChild(c);
     });
   },
@@ -444,17 +454,31 @@ const Pentomino={
   toGrid(x,y){ return { c:Math.floor(x/this.cell), r:Math.floor(y/this.cell) }; },
   hitPiece(r,c){ for(let i=this.pieces.length-1;i>=0;i--){ const p=this.pieces[i]; for(const [rr,cc] of p.cells){ if(p.pos.y+rr===r && p.pos.x+cc===c) return i; } } return null; },
   canPlace(p){ for(const [r,c] of p.cells){ const R=p.pos.y+r, C=p.pos.x+c; if(R<0||C<0||R>=this.rows||C>=this.cols) return false; if(this.board[R][C]!==-1) return false; } return true; },
-  place(p,idx){ for(const [r,c] of p.cells){ this.board[p.pos.y+r][p.pos.x+c]=idx; } if(p.pos.x>=this.cols) p.pos.x=Math.max(0,Math.min(this.cols-1,p.pos.x)); },
+  place(p,idx){ for(const [r,c] of p.cells){ this.board[p.pos.y+r][p.pos.x+c]=idx; } },
   isComplete(){ for(let r=0;r<this.rows;r++) for(let c=0;c<this.cols;c++) if(this.board[r][c]===-1) return false; return true; },
   draw(){
     const g=this.ctx, cs=this.cell; g.clearRect(0,0,this.canvas.width,this.canvas.height);
+    // Tauler
     g.strokeStyle='#e5e7eb'; for(let r=0;r<this.rows;r++) for(let c=0;c<this.cols;c++) g.strokeRect(c*cs,r*cs,cs,cs);
+    // Peces col·locades
     for(let r=0;r<this.rows;r++) for(let c=0;c<this.cols;c++){ const idx=this.board[r][c]; if(idx>=0){ g.fillStyle=this.pieces[idx].color; g.fillRect(c*cs+1,r*cs+1,cs-2,cs-2); } }
-    this.pieces.forEach(p=>{ g.fillStyle=p.color; p.cells.forEach(([rr,cc])=>{ const R=p.pos.y+rr, C=p.pos.x+cc; if(R>=0&&C>=0&&R<this.rows&&C<this.cols) g.fillRect(C*cs+1,R*cs+1,cs-2,cs-2); }); });
+    // Peces en moviment (no col·locades no es pinten fins que es “deixen” al tauler)
+    this.pieces.forEach((p,idx)=>{
+      // només dibuixa si almenys una cel·la cau dins del tauler
+      const anyInside = p.cells.some(([rr,cc])=>{
+        const R=p.pos.y+rr, C=p.pos.x+cc; return (R>=0&&C>=0&&R<this.rows&&C<this.cols);
+      });
+      if(!anyInside) return;
+      g.fillStyle=p.color;
+      p.cells.forEach(([rr,cc])=>{
+        const R=p.pos.y+rr, C=p.pos.x+cc;
+        if(R>=0&&C>=0&&R<this.rows&&C<this.cols) g.fillRect(C*cs+1,R*cs+1,cs-2,cs-2);
+      });
+    });
   }
 };
 
-/* ===== joc 5: Nets ===== */
+/* ===== Nets ===== */
 const Nets={
   name:'Paper Nets', container:null, canvas:null, ctx:null, levelIdx:0, angle:25,
   hint:'Mou l’angle i toca “Valida”.',
