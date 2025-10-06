@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-<title>Raonament Espacial · Pack (Lite fix v5)</title>
+<title>Raonament Espacial · Pack (Lite fix v6)</title>
 <style>
   :root{
     --bg:#f6f7fb; --fg:#1f2937; --muted:#6b7280;
@@ -55,8 +55,8 @@
   <div class="wrap bar">
     <h1>🧠 Raonament Espacial · Pack (Lite)</h1>
     <div>
-      <button id="btnHome" class="btn inline">Inici</button>
-      <button id="btnResetGlobal" class="btn inline">Reinicia joc</button>
+      <button id="btnHome" class="btn inline" type="button">Inici</button>
+      <button id="btnResetGlobal" class="btn inline" type="button">Reinicia joc</button>
     </div>
   </div>
 </header>
@@ -67,31 +67,31 @@
     <article class="card">
       <h2>Rotation Rush</h2>
       <p class="muted">Tria l’única rotació exacta. Les altres 3 estan clarament deformades.</p>
-      <button class="btn primary" data-start="rotation_rush">Jugar</button>
+      <button class="btn primary" data-start="rotation_rush" type="button">Jugar</button>
     </article>
 
     <article class="card">
       <h2>Symmetry Painter</h2>
       <p class="muted">Pinta al costat dret i completa la simetria vertical.</p>
-      <button class="btn primary" data-start="symmetry_painter">Jugar</button>
+      <button class="btn primary" data-start="symmetry_painter" type="button">Jugar</button>
     </article>
 
     <article class="card">
       <h2>Map Hunt</h2>
       <p class="muted">Segueix instruccions pas a pas (E/N/S/W) i completa la ruta.</p>
-      <button class="btn primary" data-start="map_hunt">Jugar</button>
+      <button class="btn primary" data-start="map_hunt" type="button">Jugar</button>
     </article>
 
     <article class="card">
       <h2>Pentomino Packing</h2>
       <p class="muted">Arrossega peces. Rotar: doble-tap o botó · Reflectir: mantenir.</p>
-      <button class="btn primary" data-start="pentomino">Jugar</button>
+      <button class="btn primary" data-start="pentomino" type="button">Jugar</button>
     </article>
 
     <article class="card">
       <h2>Paper Nets</h2>
       <p class="muted">Desplegables d’un cub. Mou l’angle i valida.</p>
-      <button class="btn primary" data-start="nets">Jugar</button>
+      <button class="btn primary" data-start="nets" type="button">Jugar</button>
     </article>
   </section>
 
@@ -106,8 +106,8 @@
     </div>
     <div id="gameRoot"></div>
     <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">
-      <button id="btnBack" class="btn">Torna</button>
-      <button id="btnNext" class="btn">Següent</button>
+      <button id="btnBack" class="btn" type="button">Torna</button>
+      <button id="btnNext" class="btn" type="button">Següent</button>
     </div>
     <p id="globalMessage" class="muted" style="margin-top:8px"></p>
   </section>
@@ -149,14 +149,28 @@
       if(G.timeLimit) startTimer(); msg.textContent=G.hint||''; state.game = G;
     }catch(e){ console.error(e); alert('Error inicialitzant el joc.'); showHub(); }
   }
+
+  /* ---------- Més robust: enllaç de botons + delegació ---------- */
   function wire(){
-    $$('[data-start]').forEach(b => b.addEventListener('click', ()=> startGame(b.dataset.start)));
+    // enllaç directe
+    $$('[data-start]').forEach(b => b.addEventListener('click', (ev)=>{ ev.preventDefault(); startGame(b.dataset.start); }));
     $('#btnHome')?.addEventListener('click', showHub);
     $('#btnBack')?.addEventListener('click', showHub);
     $('#btnResetGlobal')?.addEventListener('click', ()=>{ try{ state.game?.reset?.(); setScore(0); setTime(state.game?.timeLimit ?? null); }catch(e){} });
     $('#btnNext')?.addEventListener('click', ()=>{ try{ state.game?.next?.(); }catch(e){} });
   }
-  document.addEventListener('DOMContentLoaded', wire);
+  // Fallback: delegació global per si wire no s'executa
+  document.addEventListener('click', (e)=>{
+    const btn = e.target.closest && e.target.closest('[data-start]');
+    if(btn){ e.preventDefault(); startGame(btn.dataset.start); }
+  });
+
+  if (document.readyState === 'loading'){
+    document.addEventListener('DOMContentLoaded', wire);
+  } else {
+    // Si el DOM ja és llest (script al final), lliguem immediatament
+    try{ wire(); }catch(e){ console.error(e); }
+  }
 
   /* ---------- Geometria + retícula (Rotation Rush) ---------- */
   function centroid(poly){ const cx=avg(poly.map(p=>p[0])), cy=avg(poly.map(p=>p[1])); return [cx,cy]; }
@@ -304,16 +318,16 @@
         </div>
         <div>
           <div class="dpad" style="margin-bottom:10px">
-            <div></div><button class="btn" data-dir="N" aria-label="Amunt">▲</button><div></div>
-            <button class="btn" data-dir="W" aria-label="Esquerra">◀</button><div class="btn" disabled>·</div><button class="btn" data-dir="E" aria-label="Dreta">▶</button>
-            <div></div><button class="btn" data-dir="S" aria-label="Avall">▼</button><div></div>
+            <div></div><button class="btn" data-dir="N" aria-label="Amunt" type="button">▲</button><div></div>
+            <button class="btn" data-dir="W" aria-label="Esquerra" type="button">◀</button><div class="btn" disabled>·</div><button class="btn" data-dir="E" aria-label="Dreta" type="button">▶</button>
+            <div></div><button class="btn" data-dir="S" aria-label="Avall" type="button">▼</button><div></div>
           </div>
           <div class="muted" style="margin:6px 0">Instruccions:</div>
           <div id="mhSteps" class="steps"></div>
           <div id="mhStatus" class="muted" style="margin-top:8px"></div>
           <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">
-            <button id="mhReset" class="btn">Reinicia nivell</button>
-            <button id="mhNext" class="btn">Següent nivell</button>
+            <button id="mhReset" class="btn" type="button">Reinicia nivell</button>
+            <button id="mhNext" class="btn" type="button">Següent nivell</button>
           </div>
         </div>
       </div>`;
@@ -395,9 +409,9 @@
           <div>
             <div id="pList" style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:8px"></div>
             <div style="display:flex;gap:8px;flex-wrap:wrap">
-              <button id="btnRot" class="btn">↻ Rotar</button>
-              <button id="btnFlip" class="btn">⇋ Reflectir</button>
-              <button id="btnResetP" class="btn">Reinicia</button>
+              <button id="btnRot" class="btn" type="button">↻ Rotar</button>
+              <button id="btnFlip" class="btn" type="button">⇋ Reflectir</button>
+              <button id="btnResetP" class="btn" type="button">Reinicia</button>
             </div>
             <p class="muted" style="margin-top:6px">Consells: doble-tap = rotar · mantenir = reflectir</p>
           </div>
@@ -447,7 +461,7 @@
       },{passive:false});
       this.cv.addEventListener('pointermove',(e)=>{ if(this.active==null || !this.dragging || this.dragFrom!=='board') return; clearTimeout(pressTimer);
         const {x,y}=this.xy(e); const g=this.toGrid(x,y);
-        const p=this.pieces[this.active]; p.pos={x:g.c - this.dragOff[0], y=g.r - this.dragOff[1]};
+        const p=this.pieces[this.active]; p.pos={x:g.c - this.dragOff[0], y:g.r - this.dragOff[1]};
         this.draw();
       });
       this.cv.addEventListener('pointerup',()=>{ if(this.active==null || this.dragFrom!=='board') return; this.dragging=false;
@@ -481,12 +495,11 @@
     xy(e){ const b=this.cv.getBoundingClientRect(); return {x:e.clientX-b.left, y:e.clientY-b.top}; },
     toGrid(x,y){ return { c:Math.floor(x/this.cell), r:Math.floor(y/this.cell) }; },
     hitPiece(r,c){ for(let i=this.pieces.length-1;i>=0;i--){ const p=this.pieces[i]; for(const [rr,cc] of p.cells){ if(p.pos.y+rr===r && p.pos.x+cc===c) return i; } } return null; },
-    /* ---- Rotació/Reflexió segures: aixequen la peça, apliquen canvi i reposen o reverteixen ---- */
+    /* ---- Rotació/Reflexió segures ---- */
     rotatePlacedSafe(i, alreadyLifted=false){
       const p=this.pieces[i]; const wasPlaced = (p.pos.x>=0 && p.pos.y>=0);
       const oldCells=p.cells.map(q=>[...q]); const oldPos={...p.pos};
       if(wasPlaced && !alreadyLifted) this.lift(i);
-      // rotació + normalització
       p.cells=p.cells.map(([r,c])=>[c,-r]);
       const mr=Math.min(...p.cells.map(q=>q[0])), mc=Math.min(...p.cells.map(q=>q[1]));
       p.cells=p.cells.map(([r,c])=>[r-mr,c-mc]);
@@ -546,7 +559,7 @@
         g.globalAlpha=1;
       }
 
-      // peça activa destacada (vora) — tant si està enganxada com “aixecada”
+      // peça activa destacada (vora)
       if(this.active!=null){
         const p=this.pieces[this.active];
         g.lineWidth=2; g.strokeStyle='#2563eb';
@@ -575,8 +588,8 @@
           <label class="muted">Angle: <span id="angv">25</span>°</label>
           <input id="angle" type="range" min="0" max="90" value="25" style="width:100%">
           <div style="display:flex;gap:6px;margin-top:8px">
-            <button id="validate" class="btn">Valida</button>
-            <button id="nextNet" class="btn">Següent</button>
+            <button id="validate" class="btn" type="button">Valida</button>
+            <button id="nextNet" class="btn" type="button">Següent</button>
           </div>
           <p id="netLabel" class="muted" style="margin-top:6px"></p>
         </div>
@@ -606,7 +619,7 @@
 
   /* ---------- Registry ---------- */
   const GAMES = { rotation_rush: RotationRush, symmetry_painter: SymmetryPainter, map_hunt: MapHunt, pentomino: Pentomino, nets: Nets };
-  window.startGame = startGame;
+  window.startGame = startGame; // opcional
 })();
 </script>
 </body>
