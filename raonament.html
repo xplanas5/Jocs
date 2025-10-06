@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-<title>Raonament Espacial · Pack (Lite fix v3)</title>
+<title>Raonament Espacial · Pack (Lite fix v4)</title>
 <style>
   :root{
     --bg:#f6f7fb; --fg:#1f2937; --muted:#6b7280;
@@ -44,8 +44,6 @@
   .step.active{outline:2px solid var(--accent)}
   .step.done{background:#ecfdf5;border-color:#a7f3d0}
   .step.error{background:#fef2f2;border-color:#fecaca}
-  /* Drag fantasma pentomino */
-  #dragGhost{position:fixed;left:0;top:0;pointer-events:none;display:none;border:1px solid var(--line);border-radius:6px;background:#fff;opacity:.9}
   footer{color:#6b7280;text-align:center;font-size:12px;padding:16px}
 </style>
 </head>
@@ -111,8 +109,6 @@
     <p id="globalMessage" class="muted" style="margin-top:8px"></p>
   </section>
 </main>
-
-<canvas id="dragGhost" width="160" height="160" aria-hidden="true"></canvas>
 
 <footer>
   Pack per a GitHub Pages · Sense dependències externes · Llicència: CC BY-NC-SA 4.0
@@ -249,22 +245,19 @@
       setTime(this.timeLimit); startTimer();
       this.round++; if(this.round>10){ endGame('win'); return; }
 
-      // Base a (0,0) centrada i mostrada amb retícula
       const raw = this.shapeset[Math.floor(Math.random()*this.shapeset.length)];
       const base = normalize(raw);
       this.baseCtx.clearRect(0,0,260,260);
       drawGrid(this.baseCtx, 20);
       drawPoly(this.baseCtx, translate(base,130,130));
 
-      // Rotació objectiu
       const angles=[90,180,270];
       const correctAngle = angles[Math.floor(Math.random()*angles.length)];
       const exact = rotate(base, correctAngle);
 
-      // 3 distractors ben diferenciats (mateixa rotació, però deformats)
-      const d1 = scale(exact, Math.random()<0.5?0.72:1.28, Math.random()<0.5?1.28:0.72); // anisotròpia clara
-      const d2 = (Math.random()<0.5? shearX(exact, 0.28) : shearY(exact, 0.28));        // cisallament visible
-      const d3 = nudgeVertex(exact, 18);                                                // mou 2–3 vèrtexs
+      const d1 = scale(exact, Math.random()<0.5?0.72:1.28, Math.random()<0.5?1.28:0.72);
+      const d2 = (Math.random()<0.5? shearX(exact, 0.28) : shearY(exact, 0.28));
+      const d3 = nudgeVertex(exact, 18);
 
       let options = [
         {poly: exact, exact:true},
@@ -272,10 +265,8 @@
         {poly: d2, exact:false},
         {poly: d3, exact:false}
       ];
-      // barreja
       for (let i=options.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [options[i],options[j]]=[options[j],options[i]]; }
 
-      // pinta opcions amb retícula
       this.choicesWrap.innerHTML='';
       options.forEach(opt=>{
         const cv=document.createElement('canvas'); cv.width=140; cv.height=140;
@@ -427,14 +418,13 @@
       });
     },
     moveBy(dir){
-      // valida contra la instrucció actual
       const current = this.steps[this.stepIdx];
       const needDir = current[0];
       if(dir!==needDir){
         this.statusEl.textContent='Direcció incorrecta. Torna-ho a provar.';
         this.stepsEl.children[this.stepIdx]?.classList.add('error');
         setTimeout(()=> this.stepsEl.children[this.stepIdx]?.classList.remove('error'), 350);
-        return; // no avança
+        return;
       }
       this.move( (dir==='S')?1:(dir==='N')?-1:0, (dir==='E')?1:(dir==='W')?-1:0 );
       this.stepLeft--;
@@ -460,7 +450,6 @@
       const g=this.ctx, cs=this.cell; g.clearRect(0,0,this.cv.width,this.cv.height);
       g.strokeStyle='#e5e7eb';
       for(let r=0;r<this.rows;r++) for(let c=0;c<this.cols;c++) g.strokeRect(c*cs, r*cs, cs, cs);
-      // posició i HUD
       g.fillStyle='rgba(16,185,129,0.18)'; g.fillRect(0, this.rows*cs, this.cv.width, 28);
       g.fillStyle='#2563eb'; g.fillRect(this.player.c*cs+4, this.player.r*cs+4, cs-8, cs-8);
       g.fillStyle='#1f2937'; g.font='12px system-ui'; g.fillText('Pas: '+(this.stepIdx+1)+'/'+this.steps.length, 8, this.rows*cs+18);
@@ -468,12 +457,12 @@
   };
 
   /* ===============================
-     Pentomino — tauler més gran + drag&drop real
+     Pentomino — sense imatge fantasma + moure sense duplicar
      =============================== */
   const Pentomino = {
     name:'Pentomino Packing', timeLimit:null,
     level:0, rows:0, cols:0, cell:40, board:[], pieces:[],
-    active:null, dragging:false, dragFrom:'', dragOff:[0,0], pendingDrop:false,
+    active:null, dragging:false, dragFrom:'', dragOff:[0,0], pendingDrop:false, prevPos:null,
     hint:'Arrossega una peça des de la paleta fins al tauler. Doble-tap: rotar · Mantén: reflectir.',
     baseShapes: {
       F:[[0,1],[1,0],[1,1],[1,2],[2,2]],
@@ -514,21 +503,14 @@
       $('#btnResetP', wrap).addEventListener('click',()=> this.load(this.level));
       this.load(0);
 
-      // Drag & drop — paleta → tauler
-      const ghost = $('#dragGhost');
-      const showGhost=(pc)=>{ ghost.width=160; ghost.height=160; const g=ghost.getContext('2d'); g.clearRect(0,0,160,160); g.fillStyle=pc.color; const s=24; pc.cells.forEach(([r,c])=> g.fillRect(20+c*s,20+r*s,s-2,s-2)); ghost.style.display='block'; };
-      const moveGhost=(x,y)=>{ ghost.style.transform=`translate(${x-80}px, ${y-80}px)`; };
-      const hideGhost=()=>{ ghost.style.display='none'; };
-
+      // Drag des de la paleta (sense imatge fantasma)
       this.startPaletteDrag = (e)=>{
         const target = e.target.closest('canvas'); if(!target) return;
         e.preventDefault();
         const idx = Number(target.dataset.idx);
         this.active = idx; this.dragging=true; this.dragFrom='palette'; this.pendingDrop=true;
-        showGhost(this.pieces[idx]);
-        const move=(ev)=>{ const x=ev.clientX||(ev.touches&&ev.touches[0].clientX); const y=ev.clientY||(ev.touches&&ev.touches[0].clientY); moveGhost(x,y); this.drawHover(x,y); };
+        const move=(ev)=>{ const x=ev.clientX||(ev.touches&&ev.touches[0].clientX); const y=ev.clientY||(ev.touches&&ev.touches[0].clientY); this.drawHover(x,y); };
         const up=(ev)=>{ document.removeEventListener('mousemove',move); document.removeEventListener('touchmove',move); document.removeEventListener('mouseup',up); document.removeEventListener('touchend',up);
-          hideGhost();
           const x=ev.clientX||(ev.changedTouches&&ev.changedTouches[0].clientX); const y=ev.clientY||(ev.changedTouches&&ev.changedTouches[0].clientY);
           this.dropAt(x,y);
         };
@@ -538,12 +520,15 @@
       this.pList.addEventListener('mousedown',(e)=> this.startPaletteDrag(e));
       this.pList.addEventListener('touchstart',(e)=> this.startPaletteDrag(e), {passive:false});
 
-      // Drag dins el tauler
+      // Drag dins el tauler (moure sense duplicar)
       let pressTimer=null, lastTap=0;
       this.cv.addEventListener('pointerdown',(e)=>{ e.preventDefault();
         const {x,y}=this.xy(e); const g=this.toGrid(x,y);
         this.active=this.hitPiece(g.r,g.c);
         if(this.active!=null){
+          // DESENGANXA la peça del tauler per evitar duplicats i poder-la moure
+          this.prevPos = {...this.pieces[this.active].pos};
+          this.lift(this.active);
           this.dragging=true; this.dragFrom='board';
           this.dragOff=[g.c-this.pieces[this.active].pos.x, g.r-this.pieces[this.active].pos.y];
           const t=Date.now(); if(t-lastTap<280){ this.rotate(this.active); this.draw(); lastTap=0; return; } lastTap=t;
@@ -551,14 +536,17 @@
           this.cv.setPointerCapture(e.pointerId);
         }
       },{passive:false});
-      this.cv.addEventListener('pointermove',(e)=>{ if(this.active==null || !this.dragging || this.dragFrom!=='board') return;
-        clearTimeout(pressTimer);
+      this.cv.addEventListener('pointermove',(e)=>{ if(this.active==null || !this.dragging || this.dragFrom!=='board') return; clearTimeout(pressTimer);
         const {x,y}=this.xy(e); const g=this.toGrid(x,y);
         const p=this.pieces[this.active]; p.pos={x:g.c - this.dragOff[0], y:g.r - this.dragOff[1]};
         this.draw();
       });
       this.cv.addEventListener('pointerup',()=>{ if(this.active==null || this.dragFrom!=='board') return; this.dragging=false;
-        const p=this.pieces[this.active]; if(this.canPlace(p)){ this.place(p,this.active); this.onScore(2); }
+        const p=this.pieces[this.active];
+        if(this.canPlace(p)){ this.place(p,this.active); this.onScore(2); this.prevPos=null; }
+        else { // si no es pot, retorna a la posició prèvia
+          p.pos = {...this.prevPos}; this.place(p,this.active); this.prevPos=null;
+        }
         this.draw(); if(this.isComplete()){ this.onScore(30); alert('🧩 Tauler completat!'); }
       });
     },
@@ -567,8 +555,8 @@
       this.level=i; const L=this.levels[i];
       this.rows=L.rows; this.cols=L.cols; this.cv.width=this.cols*this.cell; this.cv.height=this.rows*this.cell;
       this.board=Array.from({length:this.rows},()=>Array(this.cols).fill(-1));
-      this.pieces = L.pieces.map(k=>({id:k,cells:this.baseShapes[k].map(p=>[...p]),pos:{x:-99,y:-99},color:this.rand()}));
-      this.renderPallet(); this.active=null; this.pendingDrop=false; this.dragging=false; this.draw();
+      this.pieces = L.pieces.map(k=>({id:k,cells:this.baseShapes[k].map(p=>[...p]),pos:{x:-999,y:-999},color:this.rand()}));
+      this.renderPallet(); this.active=null; this.pendingDrop=false; this.dragging=false; this.prevPos=null; this.draw();
     },
     renderPallet(){
       this.pList.innerHTML='';
@@ -576,7 +564,7 @@
         const c=document.createElement('canvas'); c.width=110; c.height=78; c.style.background='#fff'; c.style.border='1px solid var(--line)'; c.style.borderRadius='8px';
         c.dataset.idx=idx;
         const g=c.getContext('2d'); const s=16; g.fillStyle=pc.color; pc.cells.forEach(([r,cx])=> g.fillRect(10+cx*s,10+r*s,s-2,s-2));
-        c.addEventListener('click',()=>{ this.active=idx; this.pendingDrop=true; }); // selecció simple
+        c.addEventListener('click',()=>{ this.active=idx; this.pendingDrop=true; });
         this.pList.appendChild(c);
       });
     },
@@ -586,12 +574,14 @@
     hitPiece(r,c){ for(let i=this.pieces.length-1;i>=0;i--){ const p=this.pieces[i]; for(const [rr,cc] of p.cells){ if(p.pos.y+rr===r && p.pos.x+cc===c) return i; } } return null; },
     rotate(i){ const p=this.pieces[i]; p.cells=p.cells.map(([r,c])=>[c,-r]); const mr=Math.min(...p.cells.map(q=>q[0])), mc=Math.min(...p.cells.map(q=>q[1])); p.cells=p.cells.map(([r,c])=>[r-mr,c-mc]); },
     reflect(i){ const p=this.pieces[i]; const mc=Math.max(...p.cells.map(q=>q[1])); p.cells=p.cells.map(([r,c])=>[r,mc-c]); },
+    lift(idx){ // neteja el tauler de la peça idx
+      for(let r=0;r<this.rows;r++) for(let c=0;c<this.cols;c++) if(this.board[r][c]===idx) this.board[r][c]=-1;
+    },
     canPlaceAt(p, pos){ for(const [r,c] of p.cells){ const R=pos.y+r, C=pos.x+c; if(R<0||C<0||R>=this.rows||C>=this.cols) return false; if(this.board[R][C]!==-1) return false; } return true; },
     canPlace(p){ return this.canPlaceAt(p,p.pos); },
     place(p,idx){ for(const [r,c] of p.cells){ this.board[p.pos.y+r][p.pos.x+c]=idx; } },
     isComplete(){ for(let r=0;r<this.rows;r++) for(let c=0;c<this.cols;c++) if(this.board[r][c]===-1) return false; return true; },
     drawHover(pageX,pageY){
-      // en arrossegar des de la paleta, mostra suggeriment sobre el tauler
       const rect=this.cv.getBoundingClientRect();
       const gx = Math.floor((pageX-rect.left)/this.cell);
       const gy = Math.floor((pageY-rect.top)/this.cell);
@@ -607,16 +597,16 @@
       const p=this.pieces[this.active];
       const pos={x:gx, y:gy};
       if(this.canPlaceAt(p,pos)){ p.pos=pos; this.place(p,this.active); this.onScore(3); this.draw(); if(this.isComplete()){ this.onScore(30); alert('🧩 Tauler completat!'); } }
-      else { this.draw(); } // no col·locada
+      else { this.draw(); }
     },
     draw(hoverPos=null, hoverOk=false){
       const g=this.ctx, cs=this.cell; g.clearRect(0,0,this.cv.width,this.cv.height);
       g.strokeStyle='#e5e7eb'; for(let r=0;r<this.rows;r++) for(let c=0;c<this.cols;c++) g.strokeRect(c*cs,r*cs,cs,cs);
 
-      // peces ja col·locades
+      // peces col·locades
       for(let r=0;r<this.rows;r++) for(let c=0;c<this.cols;c++){ const idx=this.board[r][c]; if(idx>=0){ g.fillStyle=this.pieces[idx].color; g.fillRect(c*cs+1,r*cs+1,cs-2,cs-2); } }
 
-      // hover des de paleta
+      // suggeriment (hover) en arrossegar des de paleta
       if(hoverPos && this.active!=null){
         const p=this.pieces[this.active];
         g.globalAlpha=0.5; g.fillStyle= hoverOk ? 'rgba(16,185,129,.6)' : 'rgba(239,68,68,.6)';
@@ -627,7 +617,7 @@
         g.globalAlpha=1;
       }
 
-      // peces en moviment dins tauler
+      // peces “desenganxades” o en moviment dins el tauler (es mostren per sobre)
       this.pieces.forEach((p)=>{ const anyInside = p.cells.some(([rr,cc])=>{ const R=p.pos.y+rr, C=p.pos.x+cc; return (R>=0&&C>=0&&R<this.rows&&C<this.cols); }); if(!anyInside) return;
         g.fillStyle=p.color; p.cells.forEach(([rr,cc])=>{ const R=p.pos.y+rr, C=p.pos.x+cc; if(R>=0&&C>=0&&R<this.rows&&C<this.cols) g.fillRect(C*cs+1,R*cs+1,cs-2,cs-2); });
       });
@@ -691,9 +681,7 @@
     nets: Nets
   };
 
-  /* Exposa startGame per si cal des de consola (opcional) */
-  window.startGame = startGame;
-
+  window.startGame = startGame; // opcional consola
 })();
 </script>
 </body>
