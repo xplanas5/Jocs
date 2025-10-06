@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-<title>Raonament Espacial · Pack (Lite fix v2)</title>
+<title>Raonament Espacial · Pack (Lite fix v3)</title>
 <style>
   :root{
     --bg:#f6f7fb; --fg:#1f2937; --muted:#6b7280;
@@ -65,7 +65,7 @@
   <section id="hub" class="grid hub">
     <article class="card">
       <h2>Rotation Rush</h2>
-      <p class="muted">Tria l’única **rotació exacta**. Les altres 3 tenen canvis mínims (deformacions lleus).</p>
+      <p class="muted">Tria l’única rotació exacta. Les altres 3 estan clarament deformades (escala, cisallament o vèrtexs moguts).</p>
       <button class="btn primary" data-start="rotation_rush">Jugar</button>
     </article>
 
@@ -77,7 +77,7 @@
 
     <article class="card">
       <h2>Map Hunt</h2>
-      <p class="muted">Segueix les instruccions (E/N/S/W) pas a pas.</p>
+      <p class="muted">Segueix instruccions pas a pas (E/N/S/W) i completa la ruta.</p>
       <button class="btn primary" data-start="map_hunt">Jugar</button>
     </article>
 
@@ -183,7 +183,7 @@
   document.addEventListener('DOMContentLoaded', wire);
 
   /* ===============================
-     GEOMETRIA
+     GEOMETRIA + RETÍCULA
      =============================== */
   function centroid(poly){ const cx=avg(poly.map(p=>p[0])), cy=avg(poly.map(p=>p[1])); return [cx,cy]; }
   function normalize(poly){ const [cx,cy]=centroid(poly); return poly.map(([x,y])=>[x-cx,y-cy]); }
@@ -193,22 +193,29 @@
   function shearX(poly,k){ return poly.map(([x,y])=>[x+k*y, y]); }
   function shearY(poly,k){ return poly.map(([x,y])=>[x, y+k*x]); }
   function nudgeVertex(poly,mag=12){
-    const i=Math.floor(Math.random()*poly.length);
-    return poly.map(([x,y],idx)=> idx===i? [x+rnd(-mag,mag), y+rnd(-mag,mag)] : [x,y]);
+    const count = Math.min(3, Math.max(2, Math.floor(poly.length/3)));
+    const idxs=new Set(); while(idxs.size<count) idxs.add(Math.floor(Math.random()*poly.length));
+    return poly.map((pt,i)=> idxs.has(i)? [pt[0]+(Math.random()<0.5?-mag:mag), pt[1]+(Math.random()<0.5?-mag:mag)] : pt);
+  }
+  function drawGrid(ctx, step=20){
+    const w=ctx.canvas.width, h=ctx.canvas.height;
+    ctx.save(); ctx.strokeStyle='rgba(0,0,0,0.08)'; ctx.lineWidth=1;
+    for(let x=step; x<=w-step; x+=step){ ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,h); ctx.stroke(); }
+    for(let y=step; y<=h-step; y+=step){ ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(w,y); ctx.stroke(); }
+    ctx.restore();
   }
   function drawPoly(ctx,poly,{x=0,y=0,stroke='#111827'}={}){
-    ctx.save();
-    ctx.translate(x,y);
+    ctx.save(); ctx.translate(x,y);
     ctx.beginPath();
     ctx.moveTo(poly[0][0], poly[0][1]);
     for(let i=1;i<poly.length;i++) ctx.lineTo(poly[i][0], poly[i][1]);
     ctx.closePath();
-    ctx.lineWidth=2; ctx.strokeStyle=stroke; ctx.stroke();
+    ctx.lineWidth=2.5; ctx.strokeStyle=stroke; ctx.stroke();
     ctx.restore();
   }
 
   /* ===============================
-     Rotation Rush — 1 correcta + 3 amb canvis mínims (clars)
+     Rotation Rush — 1 correcta + 3 clarament deformades
      =============================== */
   const RotationRush = {
     name:'Rotation Rush', timeLimit:20,
@@ -229,12 +236,12 @@
       wrap.innerHTML = `
         <div>
           <canvas id="rr-base" width="260" height="260"></canvas>
-          <div class="muted" style="margin-top:6px">Tria la rotació correcta (90°, 180°, 270°). Les altres 3 són deformades.</div>
+          <div class="muted" style="margin-top:6px">Tria la rotació correcta (90°, 180° o 270°). La retícula t’ajuda a veure deformacions.</div>
         </div>
         <div><div id="rr-choices" class="grid" style="grid-template-columns:1fr 1fr; gap:8px"></div></div>`;
       root.appendChild(wrap);
-      this.choicesWrap = $('#rr-choices', wrap);
-      this.baseCtx = $('#rr-base', wrap).getContext('2d');
+      this.choicesWrap = wrap.querySelector('#rr-choices');
+      this.baseCtx = wrap.querySelector('#rr-base').getContext('2d');
       this.next();
     },
     reset(){ this.round=0; this.next(); },
@@ -242,19 +249,22 @@
       setTime(this.timeLimit); startTimer();
       this.round++; if(this.round>10){ endGame('win'); return; }
 
+      // Base a (0,0) centrada i mostrada amb retícula
       const raw = this.shapeset[Math.floor(Math.random()*this.shapeset.length)];
       const base = normalize(raw);
       this.baseCtx.clearRect(0,0,260,260);
+      drawGrid(this.baseCtx, 20);
       drawPoly(this.baseCtx, translate(base,130,130));
 
+      // Rotació objectiu
       const angles=[90,180,270];
       const correctAngle = angles[Math.floor(Math.random()*angles.length)];
       const exact = rotate(base, correctAngle);
 
-      // distractors amb canvis "mínims però visibles"
-      const d1 = scale(exact, rnd(0.82,0.88), rnd(1.10,1.18));     // escala anisotròpica notable
-      const d2 = shearX(exact, rnd(0.18,0.28));                    // shear clar
-      const d3 = nudgeVertex(exact, 14);                            // mou un vèrtex clarament
+      // 3 distractors ben diferenciats (mateixa rotació, però deformats)
+      const d1 = scale(exact, Math.random()<0.5?0.72:1.28, Math.random()<0.5?1.28:0.72); // anisotròpia clara
+      const d2 = (Math.random()<0.5? shearX(exact, 0.28) : shearY(exact, 0.28));        // cisallament visible
+      const d3 = nudgeVertex(exact, 18);                                                // mou 2–3 vèrtexs
 
       let options = [
         {poly: exact, exact:true},
@@ -262,13 +272,16 @@
         {poly: d2, exact:false},
         {poly: d3, exact:false}
       ];
+      // barreja
       for (let i=options.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [options[i],options[j]]=[options[j],options[i]]; }
 
+      // pinta opcions amb retícula
       this.choicesWrap.innerHTML='';
       options.forEach(opt=>{
-        const cv=document.createElement('canvas'); cv.width=120; cv.height=120;
+        const cv=document.createElement('canvas'); cv.width=140; cv.height=140;
         const ctx=cv.getContext('2d');
-        drawPoly(ctx, translate(opt.poly,60,60));
+        drawGrid(ctx, 20);
+        drawPoly(ctx, translate(opt.poly,70,70));
         cv.addEventListener('click',()=> this.pick(opt.exact));
         this.choicesWrap.appendChild(cv);
       });
@@ -432,7 +445,7 @@
           this.onScore(20); return;
         }
         this.stepLeft=parseInt(this.steps[this.stepIdx].slice(1),10);
-        this.statusEl.textContent='Bé! Següeix: '+this.steps[this.stepIdx];
+        this.statusEl.textContent='Bé! Segueix: '+this.steps[this.stepIdx];
         this.renderSteps();
       }else{
         this.statusEl.textContent='Queden '+this.stepLeft+' passos en '+needDir+'.';
@@ -447,10 +460,10 @@
       const g=this.ctx, cs=this.cell; g.clearRect(0,0,this.cv.width,this.cv.height);
       g.strokeStyle='#e5e7eb';
       for(let r=0;r<this.rows;r++) for(let c=0;c<this.cols;c++) g.strokeRect(c*cs, r*cs, cs, cs);
-      // posició inicial marcada
+      // posició i HUD
       g.fillStyle='rgba(16,185,129,0.18)'; g.fillRect(0, this.rows*cs, this.cv.width, 28);
       g.fillStyle='#2563eb'; g.fillRect(this.player.c*cs+4, this.player.r*cs+4, cs-8, cs-8);
-      g.fillStyle='#1f2937'; g.fillText('Pas: '+(this.stepIdx+1)+'/'+this.steps.length, 8, this.rows*cs+18);
+      g.fillStyle='#1f2937'; g.font='12px system-ui'; g.fillText('Pas: '+(this.stepIdx+1)+'/'+this.steps.length, 8, this.rows*cs+18);
     }
   };
 
@@ -507,9 +520,6 @@
       const moveGhost=(x,y)=>{ ghost.style.transform=`translate(${x-80}px, ${y-80}px)`; };
       const hideGhost=()=>{ ghost.style.display='none'; };
 
-      // iniciar drag des de paleta
-      this.pList.addEventListener('mousedown',(e)=> this.startPaletteDrag(e));
-      this.pList.addEventListener('touchstart',(e)=> this.startPaletteDrag(e), {passive:false});
       this.startPaletteDrag = (e)=>{
         const target = e.target.closest('canvas'); if(!target) return;
         e.preventDefault();
@@ -525,6 +535,8 @@
         document.addEventListener('mousemove',move); document.addEventListener('touchmove',move,{passive:false});
         document.addEventListener('mouseup',up); document.addEventListener('touchend',up);
       };
+      this.pList.addEventListener('mousedown',(e)=> this.startPaletteDrag(e));
+      this.pList.addEventListener('touchstart',(e)=> this.startPaletteDrag(e), {passive:false});
 
       // Drag dins el tauler
       let pressTimer=null, lastTap=0;
@@ -539,7 +551,8 @@
           this.cv.setPointerCapture(e.pointerId);
         }
       },{passive:false});
-      this.cv.addEventListener('pointermove',(e)=>{ if(this.active==null || !this.dragging || this.dragFrom!=='board') return; clearTimeout();
+      this.cv.addEventListener('pointermove',(e)=>{ if(this.active==null || !this.dragging || this.dragFrom!=='board') return;
+        clearTimeout(pressTimer);
         const {x,y}=this.xy(e); const g=this.toGrid(x,y);
         const p=this.pieces[this.active]; p.pos={x:g.c - this.dragOff[0], y:g.r - this.dragOff[1]};
         this.draw();
@@ -678,7 +691,7 @@
     nets: Nets
   };
 
-  /* Exposa startGame per si cal des de consola */
+  /* Exposa startGame per si cal des de consola (opcional) */
   window.startGame = startGame;
 
 })();
