@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-<title>Raonament Espacial · Pack (Lite fix v4)</title>
+<title>Raonament Espacial · Pack (Lite fix v5)</title>
 <style>
   :root{
     --bg:#f6f7fb; --fg:#1f2937; --muted:#6b7280;
@@ -44,6 +44,9 @@
   .step.active{outline:2px solid var(--accent)}
   .step.done{background:#ecfdf5;border-color:#a7f3d0}
   .step.error{background:#fef2f2;border-color:#fecaca}
+  /* Paleta: peça seleccionada */
+  .pal-item{background:#fff;border:1px solid var(--line);border-radius:8px}
+  .pal-item.sel{outline:2px solid var(--primary); box-shadow:0 0 0 2px rgba(37,99,235,.15) inset;}
   footer{color:#6b7280;text-align:center;font-size:12px;padding:16px}
 </style>
 </head>
@@ -63,7 +66,7 @@
   <section id="hub" class="grid hub">
     <article class="card">
       <h2>Rotation Rush</h2>
-      <p class="muted">Tria l’única rotació exacta. Les altres 3 estan clarament deformades (escala, cisallament o vèrtexs moguts).</p>
+      <p class="muted">Tria l’única rotació exacta. Les altres 3 estan clarament deformades.</p>
       <button class="btn primary" data-start="rotation_rush">Jugar</button>
     </article>
 
@@ -81,7 +84,7 @@
 
     <article class="card">
       <h2>Pentomino Packing</h2>
-      <p class="muted">Arrossega peces des de la paleta al tauler. Rotar: doble-tap · Reflectir: mantenir.</p>
+      <p class="muted">Arrossega peces. Rotar: doble-tap o botó · Reflectir: mantenir.</p>
       <button class="btn primary" data-start="pentomino">Jugar</button>
     </article>
 
@@ -118,69 +121,44 @@
 (function(){
   "use strict";
 
-  /* ---------- Utils DOM ---------- */
+  /* ---------- Utils ---------- */
   const $ = (sel,root=document)=>root.querySelector(sel);
   const $$ = (sel,root=document)=>Array.from(root.querySelectorAll(sel));
   const clamp=(v,min,max)=>Math.max(min,Math.min(max,v));
   const rnd=(min,max)=>Math.random()*(max-min)+min;
   const avg = arr => arr.reduce((a,b)=>a+b,0)/arr.length;
 
-  /* ---------- Estat app ---------- */
-  const hub = $('#hub');
-  const scene = $('#scene');
-  const root = $('#gameRoot');
-  const uiName = $('#uiGameName');
-  const uiScore = $('#uiScore');
-  const uiTime = $('#uiTime');
-  const msg = $('#globalMessage');
-
+  /* ---------- App ---------- */
+  const hub = $('#hub'), scene = $('#scene'), root = $('#gameRoot');
+  const uiName = $('#uiGameName'), uiScore = $('#uiScore'), uiTime = $('#uiTime'), msg = $('#globalMessage');
   let state = { score:0, timeLeft:null, timerId:null, game:null };
-
   function setScore(v){ state.score=Math.max(0, v); uiScore.textContent=state.score; }
   function setTime(v){ state.timeLeft = (v==null? null : +v); uiTime.textContent = (state.timeLeft==null?'—':state.timeLeft); }
   function clearTimer(){ if(state.timerId){ clearInterval(state.timerId); state.timerId=null; } }
   function startTimer(){ clearTimer(); if(state.timeLeft==null) return;
     state.timerId=setInterval(()=>{ state.timeLeft--; uiTime.textContent=state.timeLeft;
-      if(state.timeLeft<=0){ endGame('lose'); } },1000);
+      if(state.timeLeft<=0){ alert('⏱️ Temps esgotat.'); clearTimer(); } },1000);
   }
-  function endGame(kind){ clearTimer(); alert(kind==='win'?'🎉 Ben fet!':'⏱️ Temps esgotat.'); }
-
   function showHub(){ clearTimer(); scene.style.display='none'; hub.style.display='grid'; msg.textContent=''; }
   function showScene(){ hub.style.display='none'; scene.style.display='block'; }
-
-  /* ---------- Navegació ---------- */
   function startGame(id){
     try{
-      const G = GAMES[id];
-      if(!G){ alert('Joc no trobat.'); return; }
-      uiName.textContent = G.name || '—';
-      setScore(0); setTime(G.timeLimit ?? null);
-      root.innerHTML=''; showScene();
-      G.init(root,(delta)=> setScore(state.score + delta));
-      if(G.timeLimit) startTimer();
-      msg.textContent = G.hint || '';
-      state.game = G;
-    }catch(err){
-      console.error(err);
-      alert('S\'ha produït un error inicialitzant el joc.');
-      showHub();
-    }
+      const G = GAMES[id]; if(!G) return alert('Joc no trobat.');
+      uiName.textContent = G.name || '—'; setScore(0); setTime(G.timeLimit ?? null);
+      root.innerHTML=''; showScene(); G.init(root,(d)=> setScore(state.score + d));
+      if(G.timeLimit) startTimer(); msg.textContent=G.hint||''; state.game = G;
+    }catch(e){ console.error(e); alert('Error inicialitzant el joc.'); showHub(); }
   }
-
   function wire(){
     $$('[data-start]').forEach(b => b.addEventListener('click', ()=> startGame(b.dataset.start)));
     $('#btnHome')?.addEventListener('click', showHub);
     $('#btnBack')?.addEventListener('click', showHub);
-    $('#btnResetGlobal')?.addEventListener('click', ()=>{
-      try{ if(state.game && typeof state.game.reset==='function') state.game.reset(); setScore(0); setTime(state.game?.timeLimit ?? null); }catch(e){ console.error(e); }
-    });
-    $('#btnNext')?.addEventListener('click', ()=>{ try{ state.game?.next && state.game.next(); }catch(e){ console.error(e); } });
+    $('#btnResetGlobal')?.addEventListener('click', ()=>{ try{ state.game?.reset?.(); setScore(0); setTime(state.game?.timeLimit ?? null); }catch(e){} });
+    $('#btnNext')?.addEventListener('click', ()=>{ try{ state.game?.next?.(); }catch(e){} });
   }
   document.addEventListener('DOMContentLoaded', wire);
 
-  /* ===============================
-     GEOMETRIA + RETÍCULA
-     =============================== */
+  /* ---------- Geometria + retícula (Rotation Rush) ---------- */
   function centroid(poly){ const cx=avg(poly.map(p=>p[0])), cy=avg(poly.map(p=>p[1])); return [cx,cy]; }
   function normalize(poly){ const [cx,cy]=centroid(poly); return poly.map(([x,y])=>[x-cx,y-cy]); }
   function rotate(poly,deg){ const a=deg*Math.PI/180, s=Math.sin(a), c=Math.cos(a); return poly.map(([x,y])=>[x*c-y*s, x*s+y*c]); }
@@ -202,20 +180,15 @@
   }
   function drawPoly(ctx,poly,{x=0,y=0,stroke='#111827'}={}){
     ctx.save(); ctx.translate(x,y);
-    ctx.beginPath();
-    ctx.moveTo(poly[0][0], poly[0][1]);
+    ctx.beginPath(); ctx.moveTo(poly[0][0], poly[0][1]);
     for(let i=1;i<poly.length;i++) ctx.lineTo(poly[i][0], poly[i][1]);
-    ctx.closePath();
-    ctx.lineWidth=2.5; ctx.strokeStyle=stroke; ctx.stroke();
-    ctx.restore();
+    ctx.closePath(); ctx.lineWidth=2.5; ctx.strokeStyle=stroke; ctx.stroke(); ctx.restore();
   }
 
-  /* ===============================
-     Rotation Rush — 1 correcta + 3 clarament deformades
-     =============================== */
+  /* ---------- Rotation Rush ---------- */
   const RotationRush = {
     name:'Rotation Rush', timeLimit:20,
-    round:0, basePoly:null, choicesWrap:null, baseCtx:null,
+    round:0, choicesWrap:null, baseCtx:null,
     shapeset:[
       [[0,0],[62,6],[52,22],[90,34],[50,54],[74,70],[16,64],[10,42],[28,34],[6,18]],
       [[0,0],[70,0],[70,16],[36,16],[36,56],[14,56],[14,18],[2,18]],
@@ -243,46 +216,23 @@
     reset(){ this.round=0; this.next(); },
     next(){
       setTime(this.timeLimit); startTimer();
-      this.round++; if(this.round>10){ endGame('win'); return; }
-
+      this.round++; if(this.round>10){ alert('🎉 Ben fet!'); return; }
       const raw = this.shapeset[Math.floor(Math.random()*this.shapeset.length)];
       const base = normalize(raw);
-      this.baseCtx.clearRect(0,0,260,260);
-      drawGrid(this.baseCtx, 20);
-      drawPoly(this.baseCtx, translate(base,130,130));
-
-      const angles=[90,180,270];
-      const correctAngle = angles[Math.floor(Math.random()*angles.length)];
-      const exact = rotate(base, correctAngle);
-
+      this.baseCtx.clearRect(0,0,260,260); drawGrid(this.baseCtx,20); drawPoly(this.baseCtx, translate(base,130,130));
+      const angles=[90,180,270]; const exact = rotate(base, angles[Math.floor(Math.random()*angles.length)]);
       const d1 = scale(exact, Math.random()<0.5?0.72:1.28, Math.random()<0.5?1.28:0.72);
       const d2 = (Math.random()<0.5? shearX(exact, 0.28) : shearY(exact, 0.28));
       const d3 = nudgeVertex(exact, 18);
-
-      let options = [
-        {poly: exact, exact:true},
-        {poly: d1, exact:false},
-        {poly: d2, exact:false},
-        {poly: d3, exact:false}
-      ];
-      for (let i=options.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [options[i],options[j]]=[options[j],options[i]]; }
-
+      let options=[{poly:exact,exact:true},{poly:d1},{poly:d2},{poly:d3}];
+      for(let i=options.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [options[i],options[j]]=[options[j],options[i]]; }
       this.choicesWrap.innerHTML='';
-      options.forEach(opt=>{
-        const cv=document.createElement('canvas'); cv.width=140; cv.height=140;
-        const ctx=cv.getContext('2d');
-        drawGrid(ctx, 20);
-        drawPoly(ctx, translate(opt.poly,70,70));
-        cv.addEventListener('click',()=> this.pick(opt.exact));
-        this.choicesWrap.appendChild(cv);
-      });
+      options.forEach(opt=>{ const cv=document.createElement('canvas'); cv.width=140; cv.height=140; const ctx=cv.getContext('2d'); drawGrid(ctx,20); drawPoly(ctx, translate(opt.poly,70,70)); cv.addEventListener('click',()=> this.pick(!!opt.exact)); this.choicesWrap.appendChild(cv); });
     },
     pick(ok){ if(ok){ this.onScore(10); this.next(); } else { this.onScore(-2); } }
   };
 
-  /* ===============================
-     Symmetry Painter
-     =============================== */
+  /* ---------- Symmetry Painter ---------- */
   const SymmetryPainter = {
     name:'Symmetry Painter', timeLimit:null,
     levelIndex:0, rows:0, cols:0, grid:[], target:[],
@@ -303,18 +253,15 @@
     },
     next(){ this.load((this.levelIndex+1)%this.levels.length); },
     load(i){
-      this.levelIndex=i;
-      const L=this.levels[i]; this.rows=L.rows; this.cols=L.cols;
+      this.levelIndex=i; const L=this.levels[i]; this.rows=L.rows; this.cols=L.cols;
       const half=Math.floor(this.cols/2);
       this.target=Array.from({length:this.rows},(_,r)=>Array.from({length:this.cols},(_,c)=> (c<half && L.target(r,c)?1:0)));
       this.grid=Array.from({length:this.rows},()=>Array(this.cols).fill(0));
       this.render();
     },
     render(){
-      const g=this.gridEl;
-      g.innerHTML=''; g.style.gridTemplateColumns=`repeat(${this.cols},22px)`;
-      let painting=false;
-      const toggle=(r,c)=>{ if(c<Math.floor(this.cols/2)) return; this.grid[r][c]=this.grid[r][c]?0:1; };
+      const g=this.gridEl; g.innerHTML=''; g.style.gridTemplateColumns=`repeat(${this.cols},22px)`;
+      let painting=false; const toggle=(r,c)=>{ if(c<Math.floor(this.cols/2)) return; this.grid[r][c]^=1; };
       for(let r=0;r<this.rows;r++) for(let c=0;c<this.cols;c++){
         const d=document.createElement('div'); d.className='cell';
         if(this.target[r][c]===1) d.classList.add('hint');
@@ -325,9 +272,7 @@
         d.addEventListener('touchmove',(e)=>{ e.preventDefault(); const t=e.changedTouches[0]; const el=document.elementFromPoint(t.clientX,t.clientY); if(el&&el.classList.contains('cell')) el.dispatchEvent(new Event('mouseover')); },{passive:false});
         g.appendChild(d);
       }
-      const up=()=>painting=false;
-      document.addEventListener('mouseup',up,{once:true});
-      document.addEventListener('touchend',up,{once:true});
+      const up=()=>painting=false; document.addEventListener('mouseup',up,{once:true}); document.addEventListener('touchend',up,{once:true});
       this.check();
     },
     check(){
@@ -338,9 +283,7 @@
     }
   };
 
-  /* ===============================
-     Map Hunt — amb instruccions pas a pas
-     =============================== */
+  /* ---------- Map Hunt ---------- */
   const MapHunt = {
     name:'Map Hunt', timeLimit:null,
     idx:0, rows:0, cols:0, cell:34, player:{r:0,c:0},
@@ -380,90 +323,53 @@
       $('#mhReset', wrap).addEventListener('click',()=> this.load(this.idx));
       $('#mhNext', wrap).addEventListener('click',()=> this.next());
       $$('[data-dir]', wrap).forEach(b=> b.addEventListener('click',()=> this.moveBy(b.dataset.dir)));
-
-      // Gestos (pointer/touch/mouse)
       let down=false, sx=0, sy=0;
-      const onDown = (x,y)=>{ down=true; sx=x; sy=y; };
-      const onUp = (x,y)=>{ if(!down) return; down=false;
-        const dx=x-sx, dy=y-sy;
-        if(Math.abs(dx)<20 && Math.abs(dy)<20) return;
-        if(Math.abs(dx)>Math.abs(dy)) this.moveBy(dx>0?'E':'W'); else this.moveBy(dy>0?'S':'N');
-      };
+      const onDown=(x,y)=>{ down=true; sx=x; sy=y; };
+      const onUp=(x,y)=>{ if(!down) return; down=false; const dx=x-sx, dy=y-sy; if(Math.abs(dx)<20&&Math.abs(dy)<20) return; this.moveBy(Math.abs(dx)>Math.abs(dy)? (dx>0?'E':'W') : (dy>0?'S':'N')); };
       this.cv.addEventListener('pointerdown',e=>{ e.preventDefault(); onDown(e.clientX,e.clientY); this.cv.setPointerCapture(e.pointerId); },{passive:false});
       this.cv.addEventListener('pointerup',e=>{ e.preventDefault(); onUp(e.clientX,e.clientY); },{passive:false});
       this.cv.addEventListener('touchstart',e=>{ e.preventDefault(); const t=e.changedTouches[0]; onDown(t.clientX,t.clientY); },{passive:false});
       this.cv.addEventListener('touchend',e=>{ e.preventDefault(); const t=e.changedTouches[0]; onUp(t.clientX,t.clientY); },{passive:false});
       this.cv.addEventListener('mousedown',e=>{ e.preventDefault(); onDown(e.clientX,e.clientY); });
       this.cv.addEventListener('mouseup',e=>{ e.preventDefault(); onUp(e.clientX,e.clientY); });
-
       this.load(0);
     },
     next(){ this.load((this.idx+1)%this.levels.length); },
     load(i){
       this.idx=i; const L=this.levels[i];
-      this.rows=L.rows; this.cols=L.cols;
-      this.player={r:L.start[0],c:L.start[1]};
+      this.rows=L.rows; this.cols=L.cols; this.player={r:L.start[0],c:L.start[1]};
       this.steps=[...L.steps]; this.stepIdx=0; this.stepLeft=parseInt(this.steps[0].slice(1),10);
       this.cv.width=this.cols*this.cell; this.cv.height=this.rows*this.cell+28;
-      this.renderSteps(); this.statusEl.textContent='Segueix la primera instrucció.';
-      this.draw();
+      this.renderSteps(); this.statusEl.textContent='Segueix la primera instrucció.'; this.draw();
     },
     renderSteps(){
       this.stepsEl.innerHTML='';
-      this.steps.forEach((s,idx)=>{
-        const el=document.createElement('span');
-        el.className='step'+(idx<this.stepIdx?' done': idx===this.stepIdx?' active':'');
-        el.textContent=s;
-        this.stepsEl.appendChild(el);
-      });
+      this.steps.forEach((s,idx)=>{ const el=document.createElement('span'); el.className='step'+(idx<this.stepIdx?' done': idx===this.stepIdx?' active':''); el.textContent=s; this.stepsEl.appendChild(el); });
     },
     moveBy(dir){
-      const current = this.steps[this.stepIdx];
-      const needDir = current[0];
-      if(dir!==needDir){
-        this.statusEl.textContent='Direcció incorrecta. Torna-ho a provar.';
-        this.stepsEl.children[this.stepIdx]?.classList.add('error');
-        setTimeout(()=> this.stepsEl.children[this.stepIdx]?.classList.remove('error'), 350);
-        return;
-      }
-      this.move( (dir==='S')?1:(dir==='N')?-1:0, (dir==='E')?1:(dir==='W')?-1:0 );
-      this.stepLeft--;
-      if(this.stepLeft<=0){
-        this.stepIdx++;
-        if(this.stepIdx>=this.steps.length){
-          this.statusEl.textContent='🎯 Ruta completa!';
-          this.onScore(20); return;
-        }
-        this.stepLeft=parseInt(this.steps[this.stepIdx].slice(1),10);
-        this.statusEl.textContent='Bé! Segueix: '+this.steps[this.stepIdx];
-        this.renderSteps();
-      }else{
-        this.statusEl.textContent='Queden '+this.stepLeft+' passos en '+needDir+'.';
-      }
+      const cur=this.steps[this.stepIdx]; const need=cur[0];
+      if(dir!==need){ this.statusEl.textContent='Direcció incorrecta.'; this.stepsEl.children[this.stepIdx]?.classList.add('error'); setTimeout(()=> this.stepsEl.children[this.stepIdx]?.classList.remove('error'), 350); return; }
+      this.move( (dir==='S')?1:(dir==='N')?-1:0, (dir==='E')?1:(dir==='W')?-1:0 ); this.stepLeft--;
+      if(this.stepLeft<=0){ this.stepIdx++; if(this.stepIdx>=this.steps.length){ this.statusEl.textContent='🎯 Ruta completa!'; return; }
+        this.stepLeft=parseInt(this.steps[this.stepIdx].slice(1),10); this.statusEl.textContent='Segueix: '+this.steps[this.stepIdx]; this.renderSteps();
+      } else { this.statusEl.textContent='Queden '+this.stepLeft+' passos en '+need+'.'; }
     },
-    move(dr,dc){
-      this.player.r=clamp(this.player.r+dr,0,this.rows-1);
-      this.player.c=clamp(this.player.c+dc,0,this.cols-1);
-      this.draw();
-    },
+    move(dr,dc){ this.player.r=clamp(this.player.r+dr,0,this.rows-1); this.player.c=clamp(this.player.c+dc,0,this.cols-1); this.draw(); },
     draw(){
       const g=this.ctx, cs=this.cell; g.clearRect(0,0,this.cv.width,this.cv.height);
-      g.strokeStyle='#e5e7eb';
-      for(let r=0;r<this.rows;r++) for(let c=0;c<this.cols;c++) g.strokeRect(c*cs, r*cs, cs, cs);
+      g.strokeStyle='#e5e7eb'; for(let r=0;r<this.rows;r++) for(let c=0;c<this.cols;c++) g.strokeRect(c*cs,r*cs,cs,cs);
       g.fillStyle='rgba(16,185,129,0.18)'; g.fillRect(0, this.rows*cs, this.cv.width, 28);
       g.fillStyle='#2563eb'; g.fillRect(this.player.c*cs+4, this.player.r*cs+4, cs-8, cs-8);
       g.fillStyle='#1f2937'; g.font='12px system-ui'; g.fillText('Pas: '+(this.stepIdx+1)+'/'+this.steps.length, 8, this.rows*cs+18);
     }
   };
 
-  /* ===============================
-     Pentomino — sense imatge fantasma + moure sense duplicar
-     =============================== */
+  /* ---------- Pentomino: rotació sense duplicats + peça seleccionada destacada ---------- */
   const Pentomino = {
     name:'Pentomino Packing', timeLimit:null,
     level:0, rows:0, cols:0, cell:40, board:[], pieces:[],
     active:null, dragging:false, dragFrom:'', dragOff:[0,0], pendingDrop:false, prevPos:null,
-    hint:'Arrossega una peça des de la paleta fins al tauler. Doble-tap: rotar · Mantén: reflectir.',
+    hint:'Arrossega una peça. Doble-tap: rotar · Mantén: reflectir · Botons: ↻ / ⇋',
     baseShapes: {
       F:[[0,1],[1,0],[1,1],[1,2],[2,2]],
       L:[[0,0],[1,0],[2,0],[3,0],[3,1]],
@@ -483,7 +389,7 @@
       wrap.innerHTML=`
         <div style="display:grid;grid-template-columns:1fr 260px;gap:12px;align-items:start">
           <div>
-            <div class="muted" style="margin-bottom:6px">1) Tria i arrossega · 2) Deixa-la sobre el tauler · 3) Ajusta-la arrossegant</div>
+            <div class="muted" style="margin-bottom:6px">1) Arrossega des de la paleta · 2) Deixa sobre el tauler · 3) Ajusta</div>
             <canvas id="pento"></canvas>
           </div>
           <div>
@@ -498,17 +404,18 @@
         </div>`;
       root.appendChild(wrap);
       this.cv = $('#pento', wrap); this.ctx=this.cv.getContext('2d'); this.pList=$('#pList', wrap);
-      $('#btnRot', wrap).addEventListener('click',()=>{ if(this.active!=null){ this.rotate(this.active); this.draw(); }});
-      $('#btnFlip', wrap).addEventListener('click',()=>{ if(this.active!=null){ this.reflect(this.active); this.draw(); }});
+      $('#btnRot', wrap).addEventListener('click',()=>{ if(this.active!=null){ this.rotatePlacedSafe(this.active); this.draw(); this.updatePaletteSelection(); }});
+      $('#btnFlip', wrap).addEventListener('click',()=>{ if(this.active!=null){ this.reflectPlacedSafe(this.active); this.draw(); this.updatePaletteSelection(); }});
       $('#btnResetP', wrap).addEventListener('click',()=> this.load(this.level));
       this.load(0);
 
-      // Drag des de la paleta (sense imatge fantasma)
+      /* Paleta: drag i selecció visual */
       this.startPaletteDrag = (e)=>{
         const target = e.target.closest('canvas'); if(!target) return;
         e.preventDefault();
         const idx = Number(target.dataset.idx);
-        this.active = idx; this.dragging=true; this.dragFrom='palette'; this.pendingDrop=true;
+        this.active = idx; this.updatePaletteSelection();
+        this.dragging=true; this.dragFrom='palette'; this.pendingDrop=true;
         const move=(ev)=>{ const x=ev.clientX||(ev.touches&&ev.touches[0].clientX); const y=ev.clientY||(ev.touches&&ev.touches[0].clientY); this.drawHover(x,y); };
         const up=(ev)=>{ document.removeEventListener('mousemove',move); document.removeEventListener('touchmove',move); document.removeEventListener('mouseup',up); document.removeEventListener('touchend',up);
           const x=ev.clientX||(ev.changedTouches&&ev.changedTouches[0].clientX); const y=ev.clientY||(ev.changedTouches&&ev.changedTouches[0].clientY);
@@ -519,34 +426,34 @@
       };
       this.pList.addEventListener('mousedown',(e)=> this.startPaletteDrag(e));
       this.pList.addEventListener('touchstart',(e)=> this.startPaletteDrag(e), {passive:false});
+      this.pList.addEventListener('click',(e)=>{ const c=e.target.closest('canvas'); if(!c) return; this.active=Number(c.dataset.idx); this.updatePaletteSelection(); });
 
-      // Drag dins el tauler (moure sense duplicar)
+      /* Tauler: moure sense duplicar + doble-tap/mantenir amb desenganxat */
       let pressTimer=null, lastTap=0;
       this.cv.addEventListener('pointerdown',(e)=>{ e.preventDefault();
         const {x,y}=this.xy(e); const g=this.toGrid(x,y);
-        this.active=this.hitPiece(g.r,g.c);
+        this.active=this.hitPiece(g.r,g.c); this.updatePaletteSelection();
         if(this.active!=null){
-          // DESENGANXA la peça del tauler per evitar duplicats i poder-la moure
           this.prevPos = {...this.pieces[this.active].pos};
-          this.lift(this.active);
+          this.lift(this.active); // neteja el tauler abans de moure/rotar
           this.dragging=true; this.dragFrom='board';
           this.dragOff=[g.c-this.pieces[this.active].pos.x, g.r-this.pieces[this.active].pos.y];
-          const t=Date.now(); if(t-lastTap<280){ this.rotate(this.active); this.draw(); lastTap=0; return; } lastTap=t;
-          clearTimeout(pressTimer); pressTimer=setTimeout(()=>{ if(this.active!=null){ this.reflect(this.active); this.draw(); } },400);
+          const t=Date.now();
+          if(t-lastTap<280){ this.rotatePlacedSafe(this.active,true /*already lifted*/); this.draw(); lastTap=0; return; }
+          lastTap=t;
+          clearTimeout(pressTimer); pressTimer=setTimeout(()=>{ if(this.active!=null){ this.reflectPlacedSafe(this.active,true /*already lifted*/); this.draw(); } },400);
           this.cv.setPointerCapture(e.pointerId);
         }
       },{passive:false});
       this.cv.addEventListener('pointermove',(e)=>{ if(this.active==null || !this.dragging || this.dragFrom!=='board') return; clearTimeout(pressTimer);
         const {x,y}=this.xy(e); const g=this.toGrid(x,y);
-        const p=this.pieces[this.active]; p.pos={x:g.c - this.dragOff[0], y:g.r - this.dragOff[1]};
+        const p=this.pieces[this.active]; p.pos={x:g.c - this.dragOff[0], y=g.r - this.dragOff[1]};
         this.draw();
       });
       this.cv.addEventListener('pointerup',()=>{ if(this.active==null || this.dragFrom!=='board') return; this.dragging=false;
         const p=this.pieces[this.active];
-        if(this.canPlace(p)){ this.place(p,this.active); this.onScore(2); this.prevPos=null; }
-        else { // si no es pot, retorna a la posició prèvia
-          p.pos = {...this.prevPos}; this.place(p,this.active); this.prevPos=null;
-        }
+        if(this.canPlace(p)){ this.place(p,this.active); this.prevPos=null; }
+        else { p.pos = {...this.prevPos}; this.place(p,this.active); this.prevPos=null; }
         this.draw(); if(this.isComplete()){ this.onScore(30); alert('🧩 Tauler completat!'); }
       });
     },
@@ -556,27 +463,49 @@
       this.rows=L.rows; this.cols=L.cols; this.cv.width=this.cols*this.cell; this.cv.height=this.rows*this.cell;
       this.board=Array.from({length:this.rows},()=>Array(this.cols).fill(-1));
       this.pieces = L.pieces.map(k=>({id:k,cells:this.baseShapes[k].map(p=>[...p]),pos:{x:-999,y:-999},color:this.rand()}));
-      this.renderPallet(); this.active=null; this.pendingDrop=false; this.dragging=false; this.prevPos=null; this.draw();
+      this.renderPallet(); this.active=null; this.pendingDrop=false; this.dragging=false; this.prevPos=null; this.draw(); this.updatePaletteSelection();
     },
     renderPallet(){
       this.pList.innerHTML='';
       this.pieces.forEach((pc,idx)=>{
-        const c=document.createElement('canvas'); c.width=110; c.height=78; c.style.background='#fff'; c.style.border='1px solid var(--line)'; c.style.borderRadius='8px';
-        c.dataset.idx=idx;
+        const c=document.createElement('canvas'); c.width=110; c.height=78; c.className='pal-item'; c.dataset.idx=idx;
         const g=c.getContext('2d'); const s=16; g.fillStyle=pc.color; pc.cells.forEach(([r,cx])=> g.fillRect(10+cx*s,10+r*s,s-2,s-2));
-        c.addEventListener('click',()=>{ this.active=idx; this.pendingDrop=true; });
         this.pList.appendChild(c);
       });
+      this.updatePaletteSelection();
+    },
+    updatePaletteSelection(){
+      $$('.pal-item', this.pList).forEach(el=> el.classList.toggle('sel', Number(el.dataset.idx)===this.active));
     },
     rand(){ const cs=['#ef4444','#f59e0b','#10b981','#3b82f6','#a855f7','#ec4899','#14b8a6']; return cs[Math.floor(Math.random()*cs.length)]; },
     xy(e){ const b=this.cv.getBoundingClientRect(); return {x:e.clientX-b.left, y:e.clientY-b.top}; },
     toGrid(x,y){ return { c:Math.floor(x/this.cell), r:Math.floor(y/this.cell) }; },
     hitPiece(r,c){ for(let i=this.pieces.length-1;i>=0;i--){ const p=this.pieces[i]; for(const [rr,cc] of p.cells){ if(p.pos.y+rr===r && p.pos.x+cc===c) return i; } } return null; },
-    rotate(i){ const p=this.pieces[i]; p.cells=p.cells.map(([r,c])=>[c,-r]); const mr=Math.min(...p.cells.map(q=>q[0])), mc=Math.min(...p.cells.map(q=>q[1])); p.cells=p.cells.map(([r,c])=>[r-mr,c-mc]); },
-    reflect(i){ const p=this.pieces[i]; const mc=Math.max(...p.cells.map(q=>q[1])); p.cells=p.cells.map(([r,c])=>[r,mc-c]); },
-    lift(idx){ // neteja el tauler de la peça idx
-      for(let r=0;r<this.rows;r++) for(let c=0;c<this.cols;c++) if(this.board[r][c]===idx) this.board[r][c]=-1;
+    /* ---- Rotació/Reflexió segures: aixequen la peça, apliquen canvi i reposen o reverteixen ---- */
+    rotatePlacedSafe(i, alreadyLifted=false){
+      const p=this.pieces[i]; const wasPlaced = (p.pos.x>=0 && p.pos.y>=0);
+      const oldCells=p.cells.map(q=>[...q]); const oldPos={...p.pos};
+      if(wasPlaced && !alreadyLifted) this.lift(i);
+      // rotació + normalització
+      p.cells=p.cells.map(([r,c])=>[c,-r]);
+      const mr=Math.min(...p.cells.map(q=>q[0])), mc=Math.min(...p.cells.map(q=>q[1]));
+      p.cells=p.cells.map(([r,c])=>[r-mr,c-mc]);
+      if(wasPlaced){
+        if(this.canPlaceAt(p, oldPos)){ p.pos=oldPos; this.place(p,i); }
+        else { p.cells=oldCells; p.pos=oldPos; this.place(p,i); }
+      }
     },
+    reflectPlacedSafe(i, alreadyLifted=false){
+      const p=this.pieces[i]; const wasPlaced = (p.pos.x>=0 && p.pos.y>=0);
+      const oldCells=p.cells.map(q=>[...q]); const oldPos={...p.pos};
+      if(wasPlaced && !alreadyLifted) this.lift(i);
+      const mc=Math.max(...p.cells.map(q=>q[1])); p.cells=p.cells.map(([r,c])=>[r,mc-c]);
+      if(wasPlaced){
+        if(this.canPlaceAt(p, oldPos)){ p.pos=oldPos; this.place(p,i); }
+        else { p.cells=oldCells; p.pos=oldPos; this.place(p,i); }
+      }
+    },
+    lift(idx){ for(let r=0;r<this.rows;r++) for(let c=0;c<this.cols;c++) if(this.board[r][c]===idx) this.board[r][c]=-1; },
     canPlaceAt(p, pos){ for(const [r,c] of p.cells){ const R=pos.y+r, C=pos.x+c; if(R<0||C<0||R>=this.rows||C>=this.cols) return false; if(this.board[R][C]!==-1) return false; } return true; },
     canPlace(p){ return this.canPlaceAt(p,p.pos); },
     place(p,idx){ for(const [r,c] of p.cells){ this.board[p.pos.y+r][p.pos.x+c]=idx; } },
@@ -586,17 +515,15 @@
       const gx = Math.floor((pageX-rect.left)/this.cell);
       const gy = Math.floor((pageY-rect.top)/this.cell);
       const p=this.pieces[this.active];
-      const pos={x:gx, y:gy};
-      const ok=this.canPlaceAt(p,pos);
+      const pos={x:gx, y:gy}; const ok=this.canPlaceAt(p,pos);
       this.draw(pos, ok);
     },
     dropAt(pageX,pageY){
       const rect=this.cv.getBoundingClientRect();
       const gx = Math.floor((pageX-rect.left)/this.cell);
       const gy = Math.floor((pageY-rect.top)/this.cell);
-      const p=this.pieces[this.active];
-      const pos={x:gx, y:gy};
-      if(this.canPlaceAt(p,pos)){ p.pos=pos; this.place(p,this.active); this.onScore(3); this.draw(); if(this.isComplete()){ this.onScore(30); alert('🧩 Tauler completat!'); } }
+      const p=this.pieces[this.active]; const pos={x:gx, y:gy};
+      if(this.canPlaceAt(p,pos)){ p.pos=pos; this.place(p,this.active); this.draw(); if(this.isComplete()){ this.onScore(30); alert('🧩 Tauler completat!'); } }
       else { this.draw(); }
     },
     draw(hoverPos=null, hoverOk=false){
@@ -604,7 +531,9 @@
       g.strokeStyle='#e5e7eb'; for(let r=0;r<this.rows;r++) for(let c=0;c<this.cols;c++) g.strokeRect(c*cs,r*cs,cs,cs);
 
       // peces col·locades
-      for(let r=0;r<this.rows;r++) for(let c=0;c<this.cols;c++){ const idx=this.board[r][c]; if(idx>=0){ g.fillStyle=this.pieces[idx].color; g.fillRect(c*cs+1,r*cs+1,cs-2,cs-2); } }
+      for(let r=0;r<this.rows;r++) for(let c=0;c<this.cols;c++){
+        const idx=this.board[r][c]; if(idx>=0){ g.fillStyle=this.pieces[idx].color; g.fillRect(c*cs+1,r*cs+1,cs-2,cs-2); }
+      }
 
       // suggeriment (hover) en arrossegar des de paleta
       if(hoverPos && this.active!=null){
@@ -617,16 +546,19 @@
         g.globalAlpha=1;
       }
 
-      // peces “desenganxades” o en moviment dins el tauler (es mostren per sobre)
-      this.pieces.forEach((p)=>{ const anyInside = p.cells.some(([rr,cc])=>{ const R=p.pos.y+rr, C=p.pos.x+cc; return (R>=0&&C>=0&&R<this.rows&&C<this.cols); }); if(!anyInside) return;
-        g.fillStyle=p.color; p.cells.forEach(([rr,cc])=>{ const R=p.pos.y+rr, C=p.pos.x+cc; if(R>=0&&C>=0&&R<this.rows&&C<this.cols) g.fillRect(C*cs+1,R*cs+1,cs-2,cs-2); });
-      });
+      // peça activa destacada (vora) — tant si està enganxada com “aixecada”
+      if(this.active!=null){
+        const p=this.pieces[this.active];
+        g.lineWidth=2; g.strokeStyle='#2563eb';
+        p.cells.forEach(([rr,cc])=>{
+          const R=p.pos.y+rr, C=p.pos.x+cc;
+          if(R>=0&&C>=0&&R<this.rows&&C<this.cols) g.strokeRect(C*cs+1.5,R*cs+1.5,cs-3,cs-3);
+        });
+      }
     }
   };
 
-  /* ===============================
-     Paper Nets
-     =============================== */
+  /* ---------- Nets ---------- */
   const Nets = {
     name:'Paper Nets', timeLimit:null, idx:0, angle:25,
     levels:[
@@ -658,7 +590,7 @@
     },
     next(){ this.load((this.idx+1)%this.levels.length); },
     load(i){ this.idx=i; $('#netLabel').textContent=this.levels[i].label; this.draw(); },
-    validate(){ const L=this.levels[this.idx]; if(L.valid){ this.onScore(10); alert('✅ És un desplegable vàlid.'); } else { this.onScore(-2); alert('❌ No plega a un cub.'); } },
+    validate(){ const L=this.levels[this.idx]; alert(L.valid?'✅ És un desplegable vàlid.':'❌ No plega a un cub.'); },
     draw(){
       const ctx=this.ctx,W=this.cv.width,H=this.cv.height; ctx.clearRect(0,0,W,H);
       const m=this.levels[this.idx].layout; const nR=m.length, nC=Math.max(...m.map(r=>r.length));
@@ -672,16 +604,9 @@
     }
   };
 
-  /* ---------- Registre ---------- */
-  const GAMES = {
-    rotation_rush: RotationRush,
-    symmetry_painter: SymmetryPainter,
-    map_hunt: MapHunt,
-    pentomino: Pentomino,
-    nets: Nets
-  };
-
-  window.startGame = startGame; // opcional consola
+  /* ---------- Registry ---------- */
+  const GAMES = { rotation_rush: RotationRush, symmetry_painter: SymmetryPainter, map_hunt: MapHunt, pentomino: Pentomino, nets: Nets };
+  window.startGame = startGame;
 })();
 </script>
 </body>
