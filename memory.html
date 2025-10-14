@@ -1,423 +1,536 @@
 <!DOCTYPE html>
 <html lang="ca">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <title>Memory de Sumes</title>
-  <link rel="icon" href="favicon.svg" type="image/svg+xml">
-
-  <!-- Tailwind CDN amb darkMode per classe -->
-  <script>
-    window.tailwind = { config: { darkMode: 'class' } };
-  </script>
-  <script src="https://cdn.tailwindcss.com"></script>
-
-  <style>
-    *,*::before,*::after{ box-sizing:border-box; }
-    html,body,#root{ height:100%; width:100%; margin:0; }
-    body{ min-height:100vh; min-width:100vw; overflow-x:hidden; overflow-y:auto; }
-    #root{ display:flex; min-height:100vh; min-width:100vw; }
-    .app-container{ flex:1 0 auto; min-height:100vh; width:100%; }
-    @supports (height: 100dvh){ body,#root,.app-container{ min-height:100dvh; } }
-
-    /* ===== Tauler: orientació horitzontal per defecte (poques files, moltes columnes) */
-    .board{
-      display:grid;
-      gap:.75rem;
-      margin-inline:auto;        /* centrat */
-      align-content:start;
-      width:min(95vw, 1400px);   /* espai respirable a banda i banda */
-    }
-
-    /* Les columnes les fixa el JS en desktop/tablet.
-       En mòbil forcem auto-fit per evitar scroll horitzontal. */
-    @media (max-width: 640px){
-      .board{
-        grid-template-columns: repeat(auto-fit, minmax(90px, 1fr)) !important;
-        width: min(96vw, 600px);
-      }
-    }
-
-    /* ===== Flip 3D i feedback */
-    .card-3d{ perspective:1000px; }
-    .card-inner{
-      position:relative; width:100%; height:100%;
-      transform-style:preserve-3d;
-      transition: transform .45s ease;
-    }
-    .card-face{
-      backface-visibility:hidden; -webkit-backface-visibility:hidden;
-      position:absolute; inset:0;
-    }
-    .card-front{ transform: rotateY(180deg); } /* CONTINGUT OCULT a l'inici */
-    .card-back{ transform: rotateY(0deg); }    /* "?" VISIBLE a l'inici */
-    .revealed .card-inner{ transform: rotateY(180deg); } /* mostra contingut */
-
-    .shake { animation: shake .28s ease; }
-    @keyframes shake{
-      0%{ transform:translateX(0) } 25%{ transform:translateX(-6px) }
-      50%{ transform:translateX(6px) } 75%{ transform:translateX(-4px) }
-      100%{ transform:translateX(0) }
-    }
-
-    /* Safe-area padding (iPhone) per evitar anar enganxat a la vora */
-    .px-safe{
-      padding-left: max(1rem, env(safe-area-inset-left));
-      padding-right: max(1rem, env(safe-area-inset-right));
-    }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Memory Saiyan de Multiplicar</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Utilitzem una font neta i potent, com Inter -->
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+            /* Fons amb colors Dragon Ball (Taronja de l'uniforme, Blava del cel) */
+            background: linear-gradient(135deg, #FF6600 0%, #FF9900 50%, #153E77 100%);
+            background-attachment: fixed;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start; /* Alineació a dalt per a dispositius mòbils */
+            padding: 20px;
+        }
+        /* Estil per a les targetes - La màgia del Memory */
+        .card-container {
+            perspective: 1000px;
+            cursor: pointer;
+        }
+        .card {
+            width: 100%;
+            height: 100%;
+            position: relative;
+            transform-style: preserve-3d;
+            transition: transform 0.6s;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+            border-radius: 12px;
+        }
+        .card.flipped {
+            transform: rotateY(180deg);
+        }
+        .card-face {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            backface-visibility: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 1.5rem;
+            font-weight: 900;
+            border-radius: 12px;
+            border: 3px solid white;
+        }
+        /* Revers de la targeta (Dragon Ball) */
+        .card-back {
+            background-color: #FFAA00; /* Taronja Super Saiyan */
+            color: #153E77;
+            font-size: 2.5rem;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+        }
+        /* Front de la targeta (Operació/Resultat) */
+        .card-front {
+            background-color: #f0fdf4; /* Blanc brillant */
+            color: #153E77;
+            transform: rotateY(180deg);
+        }
+        /* Estil per a les targetes aparellades */
+        .card.matched .card-front {
+            background-color: #6EE7B7; /* Verd de l'èxit (Shenron green) */
+            color: #10B981;
+            box-shadow: 0 0 15px #10B981;
+        }
+        /* Animació del botó principal */
+        .btn-start:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(255, 165, 0, 0.5);
+        }
+    </style>
 </head>
-<body class="transition-colors duration-300 bg-gradient-to-br from-purple-100 via-pink-100 to-blue-100 text-slate-800 dark:from-slate-950 dark:via-slate-900 dark:to-slate-900 dark:text-slate-100">
-  <div id="root" class="app-container flex flex-col">
-    <!-- Header (sense botó de mode fosc) -->
-    <header class="w-full sticky top-0 z-10 backdrop-blur supports-[backdrop-filter]:bg-white/50 dark:supports-[backdrop-filter]:bg-slate-900/40 bg-white/70 dark:bg-slate-900/60 border-b border-white/30 dark:border-slate-700/50">
-      <div class="max-w-7xl mx-auto px-safe py-4 flex items-center justify-between">
-        <h1 class="text-3xl md:text-4xl font-black bg-gradient-to-r from-purple-600 via-pink-600 to-blue-600 bg-clip-text text-transparent">
-          🧠➕ Memory de Sumes
+<body class="p-4 sm:p-8">
+
+    <div class="max-w-4xl w-full bg-white bg-opacity-95 p-6 md:p-10 rounded-xl shadow-2xl">
+        <h1 class="text-4xl md:text-5xl font-extrabold text-[#153E77] text-center mb-6 border-b-4 border-[#FF9900] pb-2">
+            🐉 Memory Saiyan Multiplicador
         </h1>
-      </div>
-    </header>
+        
+        <!-- Configuració del Joc -->
+        <div id="settings-area" class="bg-gray-100 p-5 rounded-lg shadow-inner mb-6 transition-all duration-300">
+            <h2 class="text-2xl font-bold text-[#FF6600] mb-4">Escull la teva Taula i Dificultat</h2>
+            <div class="flex flex-col sm:flex-row gap-4">
+                
+                <div class="flex-1">
+                    <label for="table-input" class="block text-sm font-medium text-gray-700">Taula del (2 al 10):</label>
+                    <input type="number" id="table-input" value="7" min="2" max="10" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-3 text-lg focus:ring-[#FF6600] focus:border-[#FF6600]">
+                </div>
 
-    <!-- Controls -->
-    <div class="max-w-7xl mx-auto w-full px-safe py-6">
-      <div class="grid gap-4 md:grid-cols-[1fr_auto_auto_auto] items-end">
-        <div class="rounded-2xl p-4 bg-white/70 dark:bg-slate-800/60 border border-black/5 dark:border-white/10 shadow-sm">
-          <label class="block text-xs uppercase tracking-wide opacity-70 mb-1">Descripció</label>
-          <p class="text-sm opacity-90">
-            Troba parelles <strong>Operació ↔ Resultat</strong>. Orientació <strong>més horitzontal</strong>.
-            Barreja real: operacions i resultats es dispersen (no queden totes de costat).
-          </p>
+                <div class="flex-1">
+                    <label for="pairs-input" class="block text-sm font-medium text-gray-700">Parelles de fitxes (Max 10 parelles = 20 fitxes):</label>
+                    <input type="number" id="pairs-input" value="6" min="2" max="10" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-3 text-lg focus:ring-[#FF6600] focus:border-[#FF6600]">
+                    <p id="pair-warning" class="text-sm text-red-500 mt-1 hidden">El nombre de fitxes ha de ser parell (x2 del nombre de parelles).</p>
+                </div>
+            </div>
+
+            <!-- Nou toggle per a la funció Gemini API (TTS) -->
+            <div class="flex items-center justify-between mt-4 p-3 bg-white rounded-lg shadow-md">
+                <label for="tts-toggle" class="text-lg font-bold text-[#153E77] flex items-center">
+                    ✨ Veu Saiyan (Text-to-Speech)
+                </label>
+                <input type="checkbox" id="tts-toggle" checked class="h-6 w-6 text-[#FF6600] rounded focus:ring-[#FF6600] border-gray-300 cursor-pointer transition-colors duration-200" onchange="toggleTts()">
+            </div>
+            
+            <button onclick="startGame()" class="btn-start w-full mt-6 bg-[#FF6600] text-white py-3 rounded-xl font-extrabold text-xl uppercase tracking-wider transition-all duration-300 shadow-lg hover:bg-[#FF9900]">
+                Començar Entrenament!
+            </button>
         </div>
 
-        <div class="rounded-2xl p-4 bg-white/70 dark:bg-slate-800/60 border border-black/5 dark:border-white/10 shadow-sm">
-          <label for="tiles" class="block text-xs uppercase tracking-wide opacity-70 mb-1">Caselles</label>
-          <select id="tiles"
-                  class="w-full rounded-xl px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700">
-            <option value="10" selected>10 (5 parelles)</option>
-            <option value="12">12 (6 parelles)</option>
-            <option value="16">16 (8 parelles)</option>
-            <option value="18">18 (9 parelles)</option>
-            <option value="20">20 (10 parelles)</option>
-          </select>
+        <!-- Estat del Joc i Missatges -->
+        <div id="game-info" class="text-center mb-6" style="display: none;">
+            <p id="moves-display" class="text-xl font-semibold text-gray-800">Moviments: 0</p>
+            <div id="message-box" class="mt-4 p-3 rounded-lg text-white font-bold hidden"></div>
         </div>
 
-        <div class="rounded-2xl p-4 bg-white/70 dark:bg-slate-800/60 border border-black/5 dark:border-white/10 shadow-sm">
-          <label for="maxRes" class="block text-xs uppercase tracking-wide opacity-70 mb-1">Resultat màxim</label>
-          <input id="maxRes" type="number" min="4" value="20"
-                 class="w-36 rounded-xl px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700" />
-          <p class="text-xs mt-1 opacity-70">Recomanat ≥ nombre de parelles + 1 (per resultats únics).</p>
+        <!-- Nou Contenidor per Controls del Joc (Tornar al Menú) -->
+        <div id="game-controls" class="text-center mb-6" style="display: none;">
+            <button onclick="resetGame()" class="bg-gray-300 text-gray-800 py-2 px-4 rounded-lg font-bold hover:bg-gray-400 transition-colors duration-200 shadow-md">
+                Tornar al Menú 🚪
+            </button>
         </div>
 
-        <div class="flex gap-2">
-          <button id="new"
-                  class="rounded-xl px-4 py-3 text-sm font-semibold shadow-lg shadow-emerald-500/20
-                         bg-gradient-to-r from-emerald-400 to-emerald-600 text-white hover:shadow-emerald-500/30 hover:scale-[1.02] transition">
-            Nova partida
-          </button>
-          <button id="reset"
-                  class="rounded-xl px-4 py-3 text-sm font-semibold shadow-lg shadow-slate-900/10
-                         bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 hover:scale-[1.02] transition">
-            Reinicia
-          </button>
+        <!-- Tauler del Joc -->
+        <div id="game-board" class="grid gap-3 sm:gap-4 justify-center" style="display: none;">
+            <!-- Les targetes es generaran aquí -->
         </div>
-      </div>
 
-      <!-- Stats -->
-      <div class="mt-4 flex flex-wrap gap-3">
-        <div class="rounded-xl px-4 py-2 bg-white/70 dark:bg-slate-800/60 border border-black/5 dark:border-white/10">
-          ⏱️ <span class="font-bold" id="time">00:00</span>
+        <!-- Missatge de Victòria / Reiniciar -->
+        <div id="win-message" class="text-center p-6 bg-[#153E77] text-white rounded-xl shadow-2xl mt-8 hidden">
+            <h3 class="text-3xl md:text-4xl font-black mb-4">🏆 ENHORABONA, GUERRER/A! 🏆</h3>
+            <p id="final-stats" class="text-xl mb-4"></p>
+            <button onclick="resetGame()" class="btn-start bg-[#FF6600] text-white py-3 px-8 rounded-xl font-extrabold text-lg transition-all duration-300 shadow-lg hover:bg-[#FF9900]">
+                Nova Taula (Mode Super Saiyan!)
+            </button>
         </div>
-        <div class="rounded-xl px-4 py-2 bg-white/70 dark:bg-slate-800/60 border border-black/5 dark:border-white/10">
-          ✅ Encerts: <span class="font-bold" id="hits">0</span>
-        </div>
-        <div class="rounded-xl px-4 py-2 bg-white/70 dark:bg-slate-800/60 border border-black/5 dark:border-white/10">
-          ❌ Errors: <span class="font-bold" id="miss">0</span>
-        </div>
-      </div>
-
-      <!-- Missatges -->
-      <p id="message" class="mt-3 text-sm"></p>
-
-      <!-- Board -->
-      <main id="grid" class="board mt-6"></main>
     </div>
 
-    <!-- Footer -->
-    <footer class="mt-auto text-center p-4 text-xs text-slate-600 dark:text-slate-400 px-safe">
-      <p>Joc creat per a GitHub Pages · Sense dependències. Estil inspirat en “Tutifruti”.</p>
-      <p>Llicència: CC BY-NC-SA 4.0</p>
-    </footer>
-  </div>
+    <script>
+        // === Configuració de la Gemini API ===
+        const apiKey = ""; 
+        const TTS_MODEL = "gemini-2.5-flash-preview-tts";
+        const TTS_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${TTS_MODEL}:generateContent?key=${apiKey}`;
+        const TTS_VOICE = "Kore"; // Una veu ferma i potent
 
-  <script>
-    // ===== Dark mode: manté funcionalitat sense botó
-    (function initTheme(){
-      const rootEl = document.documentElement;
-      const saved = localStorage.getItem('theme'); // 'dark' | 'light' (si ja existia de versions anteriors)
-      const preferDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-      if ((saved === 'dark') || (!saved && preferDark)) rootEl.classList.add('dark');
-    })();
+        // === Variables Globals de l'Estat del Joc ===
+        let gameBoard = document.getElementById('game-board');
+        let movesDisplay = document.getElementById('moves-display');
+        let settingsArea = document.getElementById('settings-area');
+        let winMessage = document.getElementById('win-message');
+        let messageBox = document.getElementById('message-box');
+        let ttsToggle = document.getElementById('tts-toggle');
+        let gameControls = document.getElementById('game-controls');
+        
+        let cardData = [];
+        let flippedCards = [];
+        let matchedPairs = 0;
+        let totalPairs = 0;
+        let moves = 0;
+        let waiting = false;
+        let isTtsEnabled = ttsToggle ? ttsToggle.checked : true;
+        
+        // --- Funcions Utilitats ---
 
-    // ===== Elements UI
-    const els = {
-      grid: document.getElementById('grid'),
-      tiles: document.getElementById('tiles'),
-      maxRes: document.getElementById('maxRes'),
-      time: document.getElementById('time'),
-      hits: document.getElementById('hits'),
-      miss: document.getElementById('miss'),
-      newBtn: document.getElementById('new'),
-      resetBtn: document.getElementById('reset'),
-      msg: document.getElementById('message'),
-    };
-
-    // ===== Estat
-    let state = {
-      deck: [],
-      revealed: [],
-      matchedKeys: new Set(),
-      hits: 0,
-      miss: 0,
-      timerId: null,
-      startTs: null,
-      playing: false,
-      lock: false,
-      pairsNeeded: 0,
-      cols: 0, rows: 0
-    };
-
-    // ===== Utils
-    function mmss(ms){
-      const s = Math.floor(ms/1000);
-      const m = Math.floor(s/60);
-      const r = s % 60;
-      return String(m).padStart(2,'0')+':'+String(r).padStart(2,'0');
-    }
-    function startTimer(){
-      if (state.timerId) return;
-      state.startTs = Date.now();
-      els.time.textContent = '00:00';
-      state.timerId = setInterval(()=>{ els.time.textContent = mmss(Date.now()-state.startTs); }, 200);
-    }
-    function stopTimer(){ if (state.timerId){ clearInterval(state.timerId); state.timerId = null; } }
-    function shuffle(a){ for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } return a; }
-    const randInt = (min,max)=> Math.floor(Math.random()*(max-min+1))+min;
-
-    function pickRows(total){
-      if (total <= 12) return 2;  // 10,12 → 2 files
-      return 3;                   // 16,18,20 → 3 files
-    }
-
-    function makePairs(pairCount, maxR){
-      const possibleSums = [];
-      for(let s=2; s<=maxR; s++) possibleSums.push(s);
-      if (pairCount > possibleSums.length){
-        throw new Error(`Resultat màxim massa baix. Necessites com a mínim ${pairCount+1}.`);
-      }
-      shuffle(possibleSums);
-      const chosen = possibleSums.slice(0, pairCount);
-
-      let nextId = 0;
-      const pairs = chosen.map(sum => {
-        const a = randInt(1, sum-1);
-        const b = sum - a;
-        const cardSum = { id: nextId++, key: sum, type:'sum', label: `${a} + ${b}` };
-        const cardRes = { id: nextId++, key: sum, type:'res', label: String(sum) };
-        return [cardSum, cardRes];
-      });
-      return pairs;
-    }
-
-    function countAdjacentPairs(deck, cols){
-      const pos = new Map();
-      deck.forEach((c, idx) => pos.set(c.id, { r: Math.floor(idx/cols), c: idx % cols, key: c.key, type: c.type }));
-      const seen = new Set();
-      let adj = 0;
-      for (const {key} of deck){
-        if (seen.has(key)) continue;
-        const p = [...pos.values()].filter(v => v.key === key);
-        if (p.length === 2){
-          const sameRow = p[0].r === p[1].r;
-          const sideBySide = sameRow && Math.abs(p[0].c - p[1].c) === 1;
-          if (sideBySide) adj++;
+        // Funció per barrejar un array (Algoritme Fisher-Yates)
+        function shuffle(array) {
+            for (let i = array.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [array[i], array[j]] = [array[j], array[i]];
+            }
+            return array;
         }
-        seen.add(key);
-      }
-      return adj;
-    }
 
-    function buildDeck(total, maxR){
-      const pairs = Math.floor(total/2);
-      const rows = pickRows(total);
-      const cols = Math.ceil(total / rows);
-      const pairList = makePairs(pairs, maxR);
+        // Funció per mostrar missatges temporals
+        function showMessage(text, type = 'success') {
+            messageBox.textContent = text;
+            messageBox.classList.remove('hidden', 'bg-green-500', 'bg-red-500', 'bg-yellow-500');
+            
+            if (type === 'success') {
+                messageBox.classList.add('bg-green-500'); // Verd d'èxit
+            } else if (type === 'error') {
+                messageBox.classList.add('bg-red-500'); // Vermell d'error
+            } else {
+                messageBox.classList.add('bg-yellow-500'); // Groc d'avís
+            }
 
-      let deck;
-      do {
-        deck = shuffle(pairList.flat());
-        if (deck.length !== total) deck = deck.slice(0, total);
-        const adj = countAdjacentPairs(deck, cols);
-        if (adj === pairs) continue; // evita que TOTES les parelles quedin juntes
-        break;
-      } while(true);
-
-      return { deck, rows, cols };
-    }
-
-    function render(){
-      const g = els.grid;
-      g.innerHTML = '';
-
-      // Desktop/Tablet: forcem columnes; en mòbil un @media ho ignora (auto-fit)
-      if (window.innerWidth > 640){
-        g.style.gridTemplateColumns = `repeat(${state.cols}, minmax(120px, 1fr))`;
-      } else {
-        g.style.gridTemplateColumns = ''; // deixa l'auto-fit del CSS
-      }
-
-      state.deck.forEach(card=>{
-        const btn = document.createElement('button');
-        btn.type = 'button';
-        btn.dataset.id = card.id;
-        btn.className =
-          'card-3d relative h-[110px] sm:h-[130px] rounded-2xl focus:outline-none focus:ring-2 ' +
-          'focus:ring-emerald-400/70 transition-transform';
-
-        const inner = document.createElement('div');
-        inner.className = 'card-inner';
-
-        const front = document.createElement('div'); // contingut (ocult al principi)
-        front.className =
-          'card-face card-front rounded-2xl grid place-items-center ' +
-          'bg-gradient-to-br from-emerald-400 to-emerald-600 text-white ' +
-          'text-xl sm:text-2xl font-black border border-emerald-500/40 shadow-lg';
-        front.textContent = card.label;
-
-        const back = document.createElement('div');  // "?" visible al principi
-        back.className =
-          'card-face card-back rounded-2xl grid place-items-center ' +
-          'bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 ' +
-          'text-slate-600 dark:text-slate-200 text-3xl sm:text-4xl select-none';
-        back.textContent = '?';
-
-        inner.appendChild(front);
-        inner.appendChild(back);
-        btn.appendChild(inner);
-
-        btn.addEventListener('click', ()=> onFlip(card.id));
-        g.appendChild(btn);
-      });
-
-      updateCardClasses();
-    }
-
-    function setMessage(text, isError=false){
-      els.msg.textContent = text || '';
-      els.msg.className = 'mt-3 text-sm ' + (isError ? 'text-rose-500' : 'text-slate-600 dark:text-slate-300');
-    }
-    function setStats(){ els.hits.textContent = state.hits; els.miss.textContent = state.miss; }
-
-    function updateCardClasses(){
-      const map = new Map(state.deck.map(c=>[c.id, c]));
-      [...els.grid.children].forEach(btn=>{
-        const id = Number(btn.dataset.id);
-        const card = map.get(id);
-        const revealed = state.revealed.includes(id);
-        const matched = state.matchedKeys.has(card.key);
-        btn.classList.toggle('revealed', revealed || matched);
-        if (matched){
-          btn.classList.add('ring-2','ring-emerald-400/60');
-        } else {
-          btn.classList.remove('ring-2','ring-emerald-400/60');
+            setTimeout(() => {
+                messageBox.classList.add('hidden');
+            }, 2000);
         }
-      });
-    }
 
-    function finishIfDone(){
-      if (state.matchedKeys.size === state.pairsNeeded){
-        stopTimer();
-        setMessage(`🎉 Partida acabada en ${els.time.textContent}. Encerts: ${state.hits}, Errors: ${state.miss}`);
-        state.playing = false;
-      }
-    }
+        // Funció per ajustar les columnes del tauler segons la mida de la finestra i el nombre de parelles
+        function adjustGridColumns() {
+            if (totalPairs === 0) return;
 
-    function onFlip(id){
-      if (!state.playing || state.lock) return;
-      const card = state.deck.find(c=>c.id===id);
-      if (!card) return;
-      if (state.matchedKeys.has(card.key)) return;
-      if (!state.startTs) startTimer();
-      if (state.revealed.includes(id)) return;
+            let columns;
+            const width = window.innerWidth;
+            const maxCardsInRow = totalPairs / 2;
 
-      state.revealed.push(id);
-      updateCardClasses();
-
-      if (state.revealed.length === 2){
-        state.lock = true;
-        const [id1,id2] = state.revealed;
-        const c1 = state.deck.find(c=>c.id===id1);
-        const c2 = state.deck.find(c=>c.id===id2);
-
-        if (c1.key === c2.key && c1.type !== c2.type){
-          state.hits++; setStats();
-          state.matchedKeys.add(c1.key);
-          setTimeout(()=>{ state.revealed = []; state.lock = false; updateCardClasses(); finishIfDone(); }, 250);
-        } else {
-          state.miss++; setStats();
-          const setIds = new Set([id1,id2]);
-          [...els.grid.children].forEach(b=>{
-            const bid = Number(b.dataset.id);
-            if (setIds.has(bid)){ b.classList.add('shake'); setTimeout(()=> b.classList.remove('shake'), 260); }
-          });
-          setTimeout(()=>{ state.revealed = []; state.lock = false; updateCardClasses(); }, 420);
+            if (maxCardsInRow <= 4) {
+                columns = 4;
+            } else if (width >= 768) { // Desktop/Tablet (>= 768px)
+                columns = 5;
+            } else if (width >= 640) { // Small Tablet (>= 640px)
+                columns = 4;
+            } else { // Mobile (< 640px)
+                columns = 3;
+            }
+            
+            // Assegura que el nombre de columnes no excedeixi el nombre de parelles (per a taulers petits)
+            columns = Math.min(columns, maxCardsInRow);
+            if (columns < 2) columns = 2; // Mínim 2 columnes
+            
+            gameBoard.style.gridTemplateColumns = `repeat(${columns}, minmax(0, 1fr))`;
         }
-      }
-    }
 
-    function newGame(){
-      stopTimer();
-      state = { ...state, deck:[], revealed:[], matchedKeys:new Set(), hits:0, miss:0, timerId:null, startTs:null, playing:true, lock:false, pairsNeeded:0 };
 
-      setStats(); els.time.textContent='00:00'; setMessage('');
-      const total = Number(els.tiles.value);
-      const pairs = Math.floor(total/2);
-      const maxR = Number(els.maxRes.value);
+        // Funció per actualitzar l'estat del TTS
+        function toggleTts() {
+            isTtsEnabled = ttsToggle.checked;
+        }
 
-      try{
-        const { deck, rows, cols } = buildDeck(total, maxR);
-        state.deck = deck;
-        state.pairsNeeded = pairs;
-        state.rows = rows;
-        state.cols = cols;
-        render();
-      }catch(e){
-        setMessage('⚠️ ' + e.message, true);
-        state.playing = false;
-        els.grid.innerHTML = '';
-      }
-    }
+        // --- Funcions de l'API de Text-to-Speech (TTS) ---
 
-    function resetBoard(){
-      if (!state.deck.length){ newGame(); return; }
-      stopTimer();
-      state.revealed = [];
-      state.matchedKeys = new Set();
-      state.hits = 0; state.miss = 0; state.startTs = null; state.playing = true; state.lock=false;
-      setStats(); els.time.textContent='00:00'; setMessage('');
-      render();
-    }
+        // Converteix Base64 a ArrayBuffer
+        function base64ToArrayBuffer(base64) {
+            const binary_string = window.atob(base64);
+            const len = binary_string.length;
+            const bytes = new Uint8Array(len);
+            for (let i = 0; i < len; i++) {
+                bytes[i] = binary_string.charCodeAt(i);
+            }
+            return bytes.buffer;
+        }
 
-    els.newBtn.addEventListener('click', newGame);
-    els.resetBtn.addEventListener('click', resetBoard);
+        // Converteix PCM (àudio raw) a un Blob de WAV
+        function pcmToWav(pcm16, sampleRate) {
+            const numChannels = 1;
+            const bitsPerSample = 16;
+            const byteRate = sampleRate * numChannels * (bitsPerSample / 8);
+            const blockAlign = numChannels * (bitsPerSample / 8);
+            const dataSize = pcm16.length * 2; // Int16Array té 2 bytes per element
+            const buffer = new ArrayBuffer(44 + dataSize);
+            const view = new DataView(buffer);
 
-    // partida inicial
-    newGame();
+            // Funcions d'escriptura d'utilitat
+            const writeString = (view, offset, str) => {
+                for (let i = 0; i < str.length; i++) {
+                    view.setUint8(offset + i, str.charCodeAt(i));
+                }
+            };
+            const writeUint16 = (view, offset, val) => view.setUint16(offset, val, true);
+            const writeUint32 = (view, offset, val) => view.setUint32(offset, val, true);
 
-    // Re-render en canvis d’orientació/dispositiu per assegurar el layout òptim
-    window.addEventListener('resize', () => {
-      if (!state.deck.length) return;
-      render();
-    });
-  </script>
+            // RIFF chunk
+            writeString(view, 0, 'RIFF'); // ChunkID
+            writeUint32(view, 4, 36 + dataSize); // ChunkSize
+            writeString(view, 8, 'WAVE'); // Format
+
+            // FMT sub-chunk
+            writeString(view, 12, 'fmt '); // Subchunk1ID
+            writeUint32(view, 16, 16); // Subchunk1Size (16 per PCM)
+            writeUint16(view, 20, 1); // AudioFormat (1 per PCM)
+            writeUint16(view, 22, numChannels); // NumChannels
+            writeUint32(view, 24, sampleRate); // SampleRate
+            writeUint32(view, 28, byteRate); // ByteRate
+            writeUint16(view, 32, blockAlign); // BlockAlign
+            writeUint16(view, 34, bitsPerSample); // BitsPerSample
+
+            // DATA sub-chunk
+            writeString(view, 36, 'data'); // Subchunk2ID
+            writeUint32(view, 40, dataSize); // Subchunk2Size
+
+            // Dades PCM
+            let offset = 44;
+            for (let i = 0; i < pcm16.length; i++) {
+                view.setInt16(offset, pcm16[i], true); // Escriu Int16 (signed, little-endian)
+                offset += 2;
+            }
+
+            return new Blob([buffer], { type: 'audio/wav' });
+        }
+
+        async function playAudio(text) {
+            // Si el TTS no està activat, no fem la crida.
+            if (!isTtsEnabled) return; 
+
+            const payload = {
+                contents: [{
+                    parts: [{ text: `Digues amb un to d'entrenament potent: ${text}` }]
+                }],
+                generationConfig: {
+                    responseModalities: ["AUDIO"],
+                    speechConfig: {
+                        voiceConfig: {
+                            prebuiltVoiceConfig: { voiceName: TTS_VOICE }
+                        }
+                    }
+                },
+            };
+
+            // Implementació de l'exponencial backoff per reintentar
+            for (let attempt = 0; attempt < 3; attempt++) {
+                try {
+                    const response = await fetch(TTS_API_URL, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+
+                    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+
+                    const result = await response.json();
+                    const part = result?.candidates?.[0]?.content?.parts?.[0];
+                    const audioData = part?.inlineData?.data;
+                    const mimeType = part?.inlineData?.mimeType;
+
+                    if (audioData && mimeType && mimeType.startsWith("audio/L16")) {
+                        // El sample rate està incrustat en el mimetype, ex: audio/L16;rate=24000
+                        const rateMatch = mimeType.match(/rate=(\d+)/);
+                        const sampleRate = rateMatch ? parseInt(rateMatch[1], 10) : 24000;
+                        
+                        const pcmData = base64ToArrayBuffer(audioData);
+                        const pcm16 = new Int16Array(pcmData);
+
+                        const wavBlob = pcmToWav(pcm16, sampleRate);
+                        const audioUrl = URL.createObjectURL(wavBlob);
+                        
+                        const audio = new Audio(audioUrl);
+                        
+                        // Per evitar problemes amb la reproducció en navegadors (com Chrome), utilitzem un petit timeout
+                        setTimeout(() => { audio.play().catch(e => {}); }, 10);
+                        
+                        // Sortir si l'àudio es reprodueix correctament
+                        return; 
+                    } else {
+                        throw new Error("Resposta TTS invàlida o faltant.");
+                    }
+                } catch (error) {
+                    // console.error(`Intent ${attempt + 1} fallit per a TTS:`, error);
+                    if (attempt < 2) {
+                        const delay = Math.pow(2, attempt) * 1000;
+                        await new Promise(resolve => setTimeout(resolve, delay));
+                    } else {
+                        // console.error("TTS fallit després de 3 intents.");
+                        // showMessage("No s'ha pogut carregar la Veu Saiyan.", 'error'); // No mostrem missatge per ser menys intrusiu
+                    }
+                }
+            }
+        }
+
+        // --- Lògica del Joc ---
+
+        function startGame() {
+            const tableInput = document.getElementById('table-input');
+            const pairsInput = document.getElementById('pairs-input');
+            
+            const table = parseInt(tableInput.value);
+            const pairs = parseInt(pairsInput.value);
+
+            // 1. Validació de les entrades (Corregit el límit de parelles a 10)
+            if (isNaN(table) || table < 2 || table > 10) {
+                showMessage("Escull una taula de multiplicar vàlida (2-10).", 'error');
+                return;
+            }
+            if (isNaN(pairs) || pairs < 2 || pairs > 10) {
+                showMessage("Escull entre 2 i 10 parelles de fitxes, ja que les taules van fins al x10.", 'error');
+                return;
+            }
+
+            // Reinicialització de l'estat
+            resetState(pairs);
+
+            // 2. Generació de les dades de les targetes
+            const maxMultiplier = 10;
+            const multipliers = shuffle(Array.from({ length: maxMultiplier }, (_, i) => i + 1)).slice(0, totalPairs / 2);
+
+            cardData = [];
+            multipliers.forEach(m => {
+                const operation = `${table} x ${m}`;
+                const result = table * m;
+
+                // Afegim l'operació i el resultat com a targetes separades
+                cardData.push({ id: `op-${m}`, content: operation, matchKey: m });
+                cardData.push({ id: `res-${m}`, content: result.toString(), matchKey: m });
+            });
+
+            // 3. Barreja i renderització
+            cardData = shuffle(cardData);
+            renderBoard();
+            
+            // 4. Actualització de la interfície
+            settingsArea.classList.add('hidden');
+            gameBoard.style.display = 'grid';
+            document.getElementById('game-info').style.display = 'block';
+            gameControls.style.display = 'block'; // Mostra el botó de Tornar al Menú
+            
+            // Ajusta les columnes per a la mida de finestra actual
+            adjustGridColumns(); 
+
+            showMessage(`Taula del ${table} amb ${totalPairs / 2} parelles. A per totes!`);
+        }
+
+        function resetState(pairs) {
+            totalPairs = pairs * 2;
+            flippedCards = [];
+            matchedPairs = 0;
+            moves = 0;
+            waiting = false;
+            movesDisplay.textContent = `Moviments: 0`;
+            winMessage.classList.add('hidden');
+        }
+
+        function renderBoard() {
+            gameBoard.innerHTML = '';
+            
+            cardData.forEach((card, index) => {
+                const cardElement = document.createElement('div');
+                cardElement.className = 'card-container aspect-square';
+                
+                // Creació de la targeta amb la lògica de volteig
+                cardElement.innerHTML = `
+                    <div class="card" data-index="${index}" onclick="flipCard(this, ${card.matchKey}, '${card.content}')">
+                        <div class="card-face card-back">⭐</div> <!-- L'esfera de drac Saiyan -->
+                        <div class="card-face card-front text-xl md:text-2xl">${card.content}</div>
+                    </div>
+                `;
+                gameBoard.appendChild(cardElement);
+            });
+        }
+
+        function flipCard(cardElement, matchKey, content) {
+            // Si estem esperant, la carta ja està aparellada, o ja està voltejada, ignora el clic
+            if (waiting || cardElement.classList.contains('matched') || cardElement.classList.contains('flipped')) {
+                return;
+            }
+
+            cardElement.classList.add('flipped');
+            flippedCards.push({ element: cardElement, matchKey: matchKey, content: content });
+            
+            // NOVEDAD GEMINI API (TTS): Reprodueix l'operació en veu alta
+            if (isTtsEnabled && content.includes('x')) {
+                // Reformata "7 x 5" a "7 per 5" per a una millor pronunciació en català
+                const ttsText = content.replace(' x ', ' per ');
+                playAudio(ttsText);
+            }
+
+            if (flippedCards.length === 2) {
+                moves++;
+                movesDisplay.textContent = `Moviments: ${moves}`;
+                waiting = true;
+                
+                checkForMatch();
+            }
+        }
+
+        function checkForMatch() {
+            const [card1, card2] = flippedCards;
+            
+            // Comprovem si les claus de concordança (matchKey) són iguals
+            if (card1.matchKey === card2.matchKey) {
+                // Coincidència Saiyan!
+                
+                card1.element.classList.add('matched');
+                card2.element.classList.add('matched');
+
+                // Evitem que es puguin clicar de nou
+                card1.element.removeAttribute('onclick');
+                card2.element.removeAttribute('onclick');
+
+                matchedPairs++;
+                waiting = false;
+                flippedCards = [];
+                showMessage("Ki augmentat! Parella trobada!", 'success');
+
+                if (matchedPairs === totalPairs / 2) {
+                    endGame();
+                }
+
+            } else {
+                // No hi ha concordança
+                showMessage("ERROR! Prova de nou, terrícola.", 'error');
+                
+                // Girem les cartes de nou després d'un segon
+                setTimeout(() => {
+                    card1.element.classList.remove('flipped');
+                    card2.element.classList.remove('flipped');
+                    flippedCards = [];
+                    waiting = false;
+                }, 1000);
+            }
+        }
+
+        function endGame() {
+            document.getElementById('final-stats').textContent = `Has guanyat en ${moves} moviments! Ets un/a mestre/a de la multiplicació Z.`;
+            winMessage.classList.remove('hidden');
+            gameBoard.style.display = 'none';
+            gameControls.style.display = 'none'; // Oculta el botó de menú
+        }
+
+        function resetGame() {
+            settingsArea.classList.remove('hidden');
+            winMessage.classList.add('hidden');
+            gameBoard.style.display = 'none';
+            document.getElementById('game-info').style.display = 'none';
+            gameControls.style.display = 'none'; // Oculta el botó de menú
+            totalPairs = 0; // Reinicia per a adjustGridColumns
+        }
+
+        // Inicialització en carregar la finestra
+        window.onload = () => {
+             // Assegurar-se que només es mostri la configuració en iniciar
+            settingsArea.classList.remove('hidden');
+            gameBoard.style.display = 'none';
+            document.getElementById('game-info').style.display = 'none';
+            winMessage.classList.add('hidden');
+            gameControls.style.display = 'none'; // Oculta el botó de menú
+            totalPairs = 0;
+
+            // Estat inicial del TTS
+            if (ttsToggle) {
+                isTtsEnabled = ttsToggle.checked;
+                ttsToggle.onchange = toggleTts;
+            }
+
+            // [NOU] Escolta l'esdeveniment de redimensionament de la finestra
+            window.onresize = adjustGridColumns;
+        };
+
+    </script>
 </body>
 </html>
