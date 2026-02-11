@@ -29,6 +29,8 @@
     }
 
     .game-shell {
+      width: min(1080px, 100%);
+      background: #0b1120d9;
       width: min(960px, 100%);
       background: #0b1120cc;
       border: 2px solid #334155;
@@ -50,6 +52,10 @@
 
     .stats {
       display: flex;
+      gap: 0.7rem;
+      font-weight: 700;
+      font-size: 1rem;
+      flex-wrap: wrap;
       gap: 1rem;
       font-weight: 700;
       font-size: 1rem;
@@ -57,12 +63,14 @@
 
     .tag { padding: 0.2rem 0.5rem; border-radius: 999px; }
     .tag.good { background: #052e16; color: var(--good); border: 1px solid #14532d; }
+    .tag.bad { background: #3f1414; color: #fecaca; border: 1px solid #7f1d1d; }
     .tag.bad { background: #3f1414; color: #fca5a5; border: 1px solid #7f1d1d; }
 
     .actions {
       display: flex;
       gap: 0.5rem;
       align-items: center;
+      flex-wrap: wrap;
     }
 
     button {
@@ -75,6 +83,23 @@
       cursor: pointer;
     }
 
+    button.secondary {
+      background: #93c5fd;
+      color: #0f172a;
+    }
+
+    button:hover { filter: brightness(1.08); }
+
+    #gameArea {
+      position: relative;
+      height: 560px;
+      overflow: hidden;
+      cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='64' height='64' viewBox='0 0 64 64'%3E%3Cg transform='rotate(-24 30 32)'%3E%3Crect x='7' y='27' width='35' height='8' rx='3' fill='%23783420'/%3E%3Crect x='38' y='29' width='18' height='4' rx='2' fill='%23d1d5db'/%3E%3Crect x='15' y='35' width='8' height='16' rx='2' fill='%2392400e'/%3E%3Ccircle cx='56' cy='31' r='3' fill='%23fde047'/%3E%3C/g%3E%3C/svg%3E") 14 26, crosshair;
+      background-image:
+        linear-gradient(to top, #134e4a 0 15%, transparent 15%),
+        linear-gradient(to bottom, #1d4ed8a8 0%, #7dd3fca8 38%, #bfdbfe88 72%, #0f172a 100%),
+        url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='900' height='560' viewBox='0 0 900 560'%3E%3Cg fill='white' fill-opacity='0.35'%3E%3Cellipse cx='120' cy='92' rx='74' ry='28'/%3E%3Cellipse cx='180' cy='115' rx='96' ry='32'/%3E%3Cellipse cx='440' cy='84' rx='88' ry='30'/%3E%3Cellipse cx='640' cy='120' rx='120' ry='40'/%3E%3Cellipse cx='810' cy='94' rx='72' ry='24'/%3E%3C/g%3E%3C/svg%3E");
+      background-size: cover;
     button:hover { filter: brightness(1.1); }
 
     #gameArea {
@@ -99,6 +124,7 @@
       white-space: nowrap;
       pointer-events: none;
       border: 2px solid;
+      animation: bob 1.1s ease-in-out infinite alternate;
       animation: bob 1.2s ease-in-out infinite alternate;
     }
 
@@ -145,6 +171,7 @@
       padding: 1.5rem;
       background: #020617cc;
       backdrop-filter: blur(2px);
+      z-index: 5;
     }
 
     .overlay h2 { margin: 0; font-size: clamp(1.4rem, 2.3vw, 2rem); }
@@ -155,6 +182,70 @@
       padding: 0.4rem 0.7rem;
       background: #0f172acc;
       border-top: 1px solid #334155;
+    }
+
+    dialog {
+      border: 1px solid #475569;
+      border-radius: 12px;
+      background: #0f172a;
+      color: var(--text);
+      width: min(760px, 95vw);
+      padding: 0;
+    }
+
+    dialog::backdrop {
+      background: #020617cc;
+    }
+
+    .editor {
+      padding: 1rem;
+    }
+
+    .editor h3 {
+      margin-top: 0;
+      margin-bottom: 0.35rem;
+    }
+
+    .editor p {
+      margin-top: 0;
+      color: #bfdbfe;
+      font-size: 0.95rem;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: minmax(150px, 1fr) minmax(180px, 1fr);
+      gap: 0.4rem 0.8rem;
+      max-height: 330px;
+      overflow: auto;
+      padding-right: 0.2rem;
+      margin-bottom: 0.9rem;
+    }
+
+    .grid label {
+      display: contents;
+    }
+
+    .grid span {
+      background: #1e293b;
+      border-radius: 6px;
+      padding: 0.35rem 0.55rem;
+      border: 1px solid #334155;
+    }
+
+    .grid input {
+      border: 1px solid #475569;
+      border-radius: 6px;
+      background: #111827;
+      color: #e2e8f0;
+      padding: 0.35rem 0.5rem;
+      font-weight: 600;
+    }
+
+    .editor-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 0.5rem;
     }
   </style>
 </head>
@@ -168,6 +259,7 @@
       </div>
       <div class="actions">
         <button id="startBtn" type="button">Comença la cacera</button>
+        <button id="editWordsBtn" type="button" class="secondary">Edita paraules errònies</button>
       </div>
     </header>
 
@@ -180,6 +272,21 @@
         </div>
       </div>
     </section>
+    <div class="tip">Consell: fes clic ràpid com si fossis un caçador de guatlles. Pots personalitzar les formes incorrectes abans de jugar.</div>
+  </main>
+
+  <dialog id="editorDialog">
+    <form method="dialog" class="editor" id="editorForm">
+      <h3>Editor de paraules errònies</h3>
+      <p>Modifica la columna de la dreta. La columna esquerra (forma correcta) serveix de referència.</p>
+      <div class="grid" id="editorGrid"></div>
+      <div class="editor-actions">
+        <button type="button" id="cancelEditor" class="secondary">Cancel·la</button>
+        <button type="submit">Desa canvis</button>
+      </div>
+    </form>
+  </dialog>
+
     <div class="tip">Consell: fes clic ràpid com si fossis un caçador de guatlles. L'objectiu és distingir bona ortografia de mala ortografia al vol.</div>
   </main>
 
@@ -191,6 +298,13 @@
     const startBtn = document.getElementById('startBtn');
     const overlay = document.getElementById('overlay');
     const overlayBtn = document.getElementById('overlayBtn');
+    const editWordsBtn = document.getElementById('editWordsBtn');
+    const editorDialog = document.getElementById('editorDialog');
+    const editorGrid = document.getElementById('editorGrid');
+    const editorForm = document.getElementById('editorForm');
+    const cancelEditor = document.getElementById('cancelEditor');
+
+    const basePairs = [
 
     const lexicon = [
       ['caçador', 'casador'], ['llengua', 'yengua'], ['qüestió', 'cuestió'],
@@ -203,6 +317,8 @@
       ['caixa', 'caxa'], ['vuit', 'buit'], ['anyell', 'anell']
     ];
 
+    let lexicon = structuredClone(basePairs);
+
     let state = {
       running: false,
       score: 0,
@@ -213,6 +329,12 @@
       lastTime: 0,
       speed: 55
     };
+
+    function updateHud() {
+      scoreEl.textContent = state.score;
+      livesEl.textContent = state.lives;
+      escapedEl.textContent = state.escaped;
+    }
 
     function resetGame() {
       state = {
@@ -244,6 +366,7 @@
       const el = document.createElement('div');
       el.className = `word ${isIncorrect ? 'incorrect' : 'correct'}`;
       el.textContent = text;
+
       const x = 60 + Math.random() * (gameArea.clientWidth - 120);
       el.style.left = `${x}px`;
       el.style.top = '-20px';
@@ -274,6 +397,7 @@
         const dy = w.y - y;
         const distance = Math.hypot(dx, dy);
         const targetSize = Math.max(40, w.el.clientWidth / 2);
+
         if (distance <= targetSize) {
           hit = true;
           if (w.isIncorrect) {
@@ -287,6 +411,7 @@
         return true;
       });
 
+      if (!hit) state.score = Math.max(0, state.score - 1);
       if (!hit) {
         state.score = Math.max(0, state.score - 1);
       }
@@ -342,6 +467,38 @@
       }
     }
 
+    function openEditor() {
+      editorGrid.innerHTML = '';
+      lexicon.forEach(([correct, wrong], index) => {
+        const label = document.createElement('label');
+
+        const ref = document.createElement('span');
+        ref.textContent = correct;
+
+        const input = document.createElement('input');
+        input.name = `wrong-${index}`;
+        input.value = wrong;
+        input.required = true;
+        input.maxLength = 30;
+
+        label.append(ref, input);
+        editorGrid.appendChild(label);
+      });
+
+      editorDialog.showModal();
+    }
+
+    function saveEditorChanges() {
+      const updated = lexicon.map(([correct], index) => {
+        const input = editorForm.elements.namedItem(`wrong-${index}`);
+        const value = (input?.value || '').trim();
+        return [correct, value || basePairs[index][1]];
+      });
+
+      lexicon = updated;
+      editorDialog.close();
+    }
+
     gameArea.addEventListener('click', (ev) => {
       const rect = gameArea.getBoundingClientRect();
       shoot(ev.clientX - rect.left, ev.clientY - rect.top);
@@ -349,6 +506,12 @@
 
     startBtn.addEventListener('click', resetGame);
     overlayBtn.addEventListener('click', resetGame);
+    editWordsBtn.addEventListener('click', openEditor);
+    cancelEditor.addEventListener('click', () => editorDialog.close());
+    editorForm.addEventListener('submit', (ev) => {
+      ev.preventDefault();
+      saveEditorChanges();
+    });
   </script>
 </body>
 </html>
