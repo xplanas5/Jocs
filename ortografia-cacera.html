@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="ca">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Caça Ortogràfica Catalana</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #0f172a;
+      --panel: #1e293b;
+      --accent: #f59e0b;
+      --good: #22c55e;
+      --bad: #ef4444;
+      --text: #e2e8f0;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: "Trebuchet MS", "Segoe UI", sans-serif;
+      background: radial-gradient(circle at top, #1e293b 0%, var(--bg) 45%);
+      color: var(--text);
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      padding: 1rem;
+    }
+
+    .game-shell {
+      width: min(960px, 100%);
+      background: #0b1120cc;
+      border: 2px solid #334155;
+      border-radius: 14px;
+      box-shadow: 0 20px 40px #00000080;
+      overflow: hidden;
+    }
+
+    .hud {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+      justify-content: space-between;
+      align-items: center;
+      background: var(--panel);
+      padding: 0.8rem 1rem;
+      border-bottom: 2px solid #334155;
+    }
+
+    .stats {
+      display: flex;
+      gap: 1rem;
+      font-weight: 700;
+      font-size: 1rem;
+    }
+
+    .tag { padding: 0.2rem 0.5rem; border-radius: 999px; }
+    .tag.good { background: #052e16; color: var(--good); border: 1px solid #14532d; }
+    .tag.bad { background: #3f1414; color: #fca5a5; border: 1px solid #7f1d1d; }
+
+    .actions {
+      display: flex;
+      gap: 0.5rem;
+      align-items: center;
+    }
+
+    button {
+      border: none;
+      border-radius: 8px;
+      padding: 0.5rem 0.9rem;
+      font-weight: 700;
+      background: var(--accent);
+      color: #111827;
+      cursor: pointer;
+    }
+
+    button:hover { filter: brightness(1.1); }
+
+    #gameArea {
+      position: relative;
+      height: 540px;
+      overflow: hidden;
+      cursor: crosshair;
+      background:
+        linear-gradient(to top, #0b3f1c 0 18%, transparent 18%),
+        linear-gradient(to bottom, #82cfff33, #0f172a);
+      user-select: none;
+    }
+
+    .word {
+      position: absolute;
+      transform: translate(-50%, -50%);
+      padding: 0.25rem 0.55rem;
+      border-radius: 8px;
+      font-size: 1.15rem;
+      font-weight: 800;
+      text-shadow: 0 2px 2px #00000066;
+      white-space: nowrap;
+      pointer-events: none;
+      border: 2px solid;
+      animation: bob 1.2s ease-in-out infinite alternate;
+    }
+
+    .word.correct {
+      color: #bbf7d0;
+      background: #14532dbb;
+      border-color: #22c55e;
+    }
+
+    .word.incorrect {
+      color: #fecaca;
+      background: #7f1d1dbb;
+      border-color: #ef4444;
+    }
+
+    @keyframes bob {
+      from { margin-top: -2px; }
+      to { margin-top: 2px; }
+    }
+
+    .shot {
+      position: absolute;
+      width: 20px;
+      height: 20px;
+      transform: translate(-50%, -50%);
+      border: 2px solid #fef08a;
+      border-radius: 50%;
+      box-shadow: 0 0 12px #fde047;
+      pointer-events: none;
+      animation: pop 240ms ease-out forwards;
+    }
+
+    @keyframes pop {
+      from { opacity: 1; transform: translate(-50%, -50%) scale(0.35); }
+      to { opacity: 0; transform: translate(-50%, -50%) scale(1.4); }
+    }
+
+    .overlay {
+      position: absolute;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      text-align: center;
+      padding: 1.5rem;
+      background: #020617cc;
+      backdrop-filter: blur(2px);
+    }
+
+    .overlay h2 { margin: 0; font-size: clamp(1.4rem, 2.3vw, 2rem); }
+    .overlay p { margin: 0.75rem 0 1rem; max-width: 42ch; }
+
+    .tip {
+      font-size: 0.92rem;
+      padding: 0.4rem 0.7rem;
+      background: #0f172acc;
+      border-top: 1px solid #334155;
+    }
+  </style>
+</head>
+<body>
+  <main class="game-shell" aria-label="Joc de caça ortogràfica">
+    <header class="hud">
+      <div class="stats">
+        <span class="tag good">Punts: <strong id="score">0</strong></span>
+        <span class="tag">Vides: <strong id="lives">5</strong></span>
+        <span class="tag bad">Errades escapades: <strong id="escaped">0</strong></span>
+      </div>
+      <div class="actions">
+        <button id="startBtn" type="button">Comença la cacera</button>
+      </div>
+    </header>
+
+    <section id="gameArea" aria-live="polite">
+      <div class="overlay" id="overlay">
+        <div>
+          <h2>Caçador d'ortografia catalana</h2>
+          <p>Dispara només a les paraules <strong>mal escrites</strong>. Si dispares una paraula correcta, perds punts. Si una paraula incorrecta arriba al terra, perds una vida.</p>
+          <button id="overlayBtn" type="button">Jugar ara</button>
+        </div>
+      </div>
+    </section>
+    <div class="tip">Consell: fes clic ràpid com si fossis un caçador de guatlles. L'objectiu és distingir bona ortografia de mala ortografia al vol.</div>
+  </main>
+
+  <script>
+    const gameArea = document.getElementById('gameArea');
+    const scoreEl = document.getElementById('score');
+    const livesEl = document.getElementById('lives');
+    const escapedEl = document.getElementById('escaped');
+    const startBtn = document.getElementById('startBtn');
+    const overlay = document.getElementById('overlay');
+    const overlayBtn = document.getElementById('overlayBtn');
+
+    const lexicon = [
+      ['caçador', 'casador'], ['llengua', 'yengua'], ['qüestió', 'cuestió'],
+      ['intel·ligent', 'inteligent'], ['església', 'iglésia'], ['hivern', 'ivern'],
+      ['xarxa', 'charxa'], ['metge', 'metje'], ['cotxe', 'coxe'],
+      ['veïna', 'veina'], ['pingüí', 'pinguí'], ['allò', 'alló'],
+      ['ràpid', 'rapid'], ['muntanya', 'muntaña'], ['feliç', 'felis'],
+      ['història', 'istòria'], ['col·legi', 'colegi'], ['qüestió', 'questió'],
+      ['escola', 'escolla'], ['joguina', 'jogina'], ['pluja', 'plutja'],
+      ['caixa', 'caxa'], ['vuit', 'buit'], ['anyell', 'anell']
+    ];
+
+    let state = {
+      running: false,
+      score: 0,
+      lives: 5,
+      escaped: 0,
+      words: [],
+      spawnTimer: 0,
+      lastTime: 0,
+      speed: 55
+    };
+
+    function resetGame() {
+      state = {
+        running: true,
+        score: 0,
+        lives: 5,
+        escaped: 0,
+        words: [],
+        spawnTimer: 0,
+        lastTime: performance.now(),
+        speed: 55
+      };
+      gameArea.querySelectorAll('.word').forEach(el => el.remove());
+      updateHud();
+      overlay.hidden = true;
+      requestAnimationFrame(loop);
+    }
+
+    function updateHud() {
+      scoreEl.textContent = state.score;
+      livesEl.textContent = state.lives;
+      escapedEl.textContent = state.escaped;
+    }
+
+    function spawnWord() {
+      const [correct, wrong] = lexicon[Math.floor(Math.random() * lexicon.length)];
+      const isIncorrect = Math.random() < 0.45;
+      const text = isIncorrect ? wrong : correct;
+      const el = document.createElement('div');
+      el.className = `word ${isIncorrect ? 'incorrect' : 'correct'}`;
+      el.textContent = text;
+      const x = 60 + Math.random() * (gameArea.clientWidth - 120);
+      el.style.left = `${x}px`;
+      el.style.top = '-20px';
+      gameArea.appendChild(el);
+
+      state.words.push({
+        el,
+        x,
+        y: -20,
+        vy: state.speed + Math.random() * 42,
+        isIncorrect
+      });
+    }
+
+    function shoot(x, y) {
+      if (!state.running) return;
+
+      const shot = document.createElement('div');
+      shot.className = 'shot';
+      shot.style.left = `${x}px`;
+      shot.style.top = `${y}px`;
+      gameArea.appendChild(shot);
+      setTimeout(() => shot.remove(), 260);
+
+      let hit = false;
+      state.words = state.words.filter(w => {
+        const dx = w.x - x;
+        const dy = w.y - y;
+        const distance = Math.hypot(dx, dy);
+        const targetSize = Math.max(40, w.el.clientWidth / 2);
+        if (distance <= targetSize) {
+          hit = true;
+          if (w.isIncorrect) {
+            state.score += 10;
+          } else {
+            state.score = Math.max(0, state.score - 6);
+          }
+          w.el.remove();
+          return false;
+        }
+        return true;
+      });
+
+      if (!hit) {
+        state.score = Math.max(0, state.score - 1);
+      }
+      updateHud();
+    }
+
+    function endGame() {
+      state.running = false;
+      overlay.hidden = false;
+      overlay.innerHTML = `
+        <div>
+          <h2>Fi de la partida</h2>
+          <p>Has aconseguit <strong>${state.score} punts</strong>. Les paraules incorrectes que han escapat: ${state.escaped}.</p>
+          <button id="overlayRestart" type="button">Torna a jugar</button>
+        </div>`;
+      document.getElementById('overlayRestart').addEventListener('click', resetGame);
+    }
+
+    function loop(now) {
+      if (!state.running) return;
+      const dt = (now - state.lastTime) / 1000;
+      state.lastTime = now;
+      state.spawnTimer += dt;
+      state.speed += dt * 0.8;
+
+      if (state.spawnTimer >= 0.72) {
+        state.spawnTimer = 0;
+        spawnWord();
+      }
+
+      state.words = state.words.filter(w => {
+        w.y += w.vy * dt;
+        w.el.style.top = `${w.y}px`;
+
+        if (w.y > gameArea.clientHeight + 30) {
+          w.el.remove();
+          if (w.isIncorrect) {
+            state.lives -= 1;
+            state.escaped += 1;
+          } else {
+            state.score += 2;
+          }
+          return false;
+        }
+        return true;
+      });
+
+      updateHud();
+      if (state.lives <= 0) {
+        endGame();
+      } else {
+        requestAnimationFrame(loop);
+      }
+    }
+
+    gameArea.addEventListener('click', (ev) => {
+      const rect = gameArea.getBoundingClientRect();
+      shoot(ev.clientX - rect.left, ev.clientY - rect.top);
+    });
+
+    startBtn.addEventListener('click', resetGame);
+    overlayBtn.addEventListener('click', resetGame);
+  </script>
+</body>
+</html>
