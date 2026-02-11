@@ -184,6 +184,14 @@
       border-top: 1px solid #334155;
     }
 
+    .editor-panel {
+      border-top: 1px solid #334155;
+      background: #0b1224;
+      padding: 1rem;
+    }
+
+    .editor {
+      padding: 0;
     dialog {
       border: 1px solid #475569;
       border-radius: 12px;
@@ -275,12 +283,19 @@
     <div class="tip">Consell: fes clic ràpid com si fossis un caçador de guatlles. Pots personalitzar les formes incorrectes abans de jugar.</div>
   </main>
 
+  <section id="editorPanel" class="editor-panel" hidden>
+    <form class="editor" id="editorForm">
   <dialog id="editorDialog">
     <form method="dialog" class="editor" id="editorForm">
       <h3>Editor de paraules errònies</h3>
       <p>Modifica la columna de la dreta. La columna esquerra (forma correcta) serveix de referència.</p>
       <div class="grid" id="editorGrid"></div>
       <div class="editor-actions">
+        <button type="button" id="cancelEditor" class="secondary">Tanca</button>
+        <button type="submit">Desa canvis</button>
+      </div>
+    </form>
+  </section>
         <button type="button" id="cancelEditor" class="secondary">Cancel·la</button>
         <button type="submit">Desa canvis</button>
       </div>
@@ -299,6 +314,7 @@
     const overlay = document.getElementById('overlay');
     const overlayBtn = document.getElementById('overlayBtn');
     const editWordsBtn = document.getElementById('editWordsBtn');
+    const editorPanel = document.getElementById('editorPanel');
     const editorDialog = document.getElementById('editorDialog');
     const editorGrid = document.getElementById('editorGrid');
     const editorForm = document.getElementById('editorForm');
@@ -317,6 +333,7 @@
       ['caixa', 'caxa'], ['vuit', 'buit'], ['anyell', 'anell']
     ];
 
+    let lexicon = basePairs.map(([correct, wrong]) => [correct, wrong]);
     let lexicon = structuredClone(basePairs);
 
     let state = {
@@ -485,17 +502,21 @@
         editorGrid.appendChild(label);
       });
 
+      editorPanel.hidden = false;
       editorDialog.showModal();
     }
 
     function saveEditorChanges() {
       const updated = lexicon.map(([correct], index) => {
         const input = editorForm.elements.namedItem(`wrong-${index}`);
+        const raw = input && "value" in input ? input.value : "";
+        const value = String(raw).trim();
         const value = (input?.value || '').trim();
         return [correct, value || basePairs[index][1]];
       });
 
       lexicon = updated;
+      editorPanel.hidden = true;
       editorDialog.close();
     }
 
@@ -507,6 +528,7 @@
     startBtn.addEventListener('click', resetGame);
     overlayBtn.addEventListener('click', resetGame);
     editWordsBtn.addEventListener('click', openEditor);
+    cancelEditor.addEventListener('click', () => { editorPanel.hidden = true; });
     cancelEditor.addEventListener('click', () => editorDialog.close());
     editorForm.addEventListener('submit', (ev) => {
       ev.preventDefault();
