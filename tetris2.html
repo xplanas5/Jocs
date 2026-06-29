@@ -1,0 +1,664 @@
+<!DOCTYPE html>
+<html lang="ca">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Tetris - Qui més punts faci una guàrdia menys</title>
+    <!-- Utilitzem Tailwind CSS per als estils -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            background-color: fuchsia; /* Fucsia */
+            color: #f8fafc; /* Slate 50 */
+            touch-action: manipulation; /* Evita el zoom accidental en mòbils en tocar ràpid */
+            user-select: none;
+        }
+        
+        .game-container {
+            position: relative;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.8);
+            border-radius: 8px;
+            background-color: #000;
+        }
+
+        canvas {
+            display: block;
+            border-radius: 8px;
+        }
+
+        /* Botons tàctils */
+        .btn-control {
+            background: rgba(51, 65, 85, 0.8); /* Slate 700 amb opacitat */
+            border: 2px solid #475569;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            color: white;
+            padding: 1rem;
+            cursor: pointer;
+            transition: background 0.1s;
+        }
+        
+        .btn-control:active {
+            background: #64748b; /* Slate 500 */
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col items-center justify-center p-4">
+
+    <div class="max-w-4xl w-full flex flex-col md:flex-row gap-8 items-center md:items-start justify-center">
+        
+        <!-- Panell Lateral Esquerre (Controls i Puntuació a l'ordinador) -->
+        <div class="flex flex-col gap-6 w-full md:w-64 order-2 md:order-1">
+            <div class="bg-slate-800 p-6 rounded-xl border border-slate-700 shadow-lg text-center">
+                <h1 class="text-4xl font-black text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-purple-500 mb-1 tracking-wider">TETRIS</h1>
+                <p class="text-xs font-bold text-yellow-400 uppercase tracking-wide mb-4">Qui més punts faci,<br>una guàrdia menys!</p>
+                
+                <div class="mt-4 flex flex-col gap-2">
+                    <div class="bg-slate-900 rounded p-3 text-left flex justify-between items-center border border-slate-700">
+                        <span class="text-slate-400 font-semibold uppercase text-sm">Puntuació</span>
+                        <span id="score" class="font-mono text-2xl text-green-400 font-bold">0</span>
+                    </div>
+                    <div class="bg-slate-900 rounded p-3 text-left flex justify-between items-center border border-slate-700">
+                        <span class="text-slate-400 font-semibold uppercase text-sm">Línies</span>
+                        <span id="lines" class="font-mono text-xl text-blue-400 font-bold">0</span>
+                    </div>
+                    <div class="bg-slate-900 rounded p-3 text-left flex justify-between items-center border border-slate-700">
+                        <span class="text-slate-400 font-semibold uppercase text-sm">Nivell</span>
+                        <span id="level" class="font-mono text-xl text-purple-400 font-bold">1</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Controls de Teclat (Info) -->
+            <div class="hidden md:block bg-slate-800 p-5 rounded-xl border border-slate-700 text-sm text-slate-300">
+                <h3 class="font-bold text-white mb-2 uppercase text-xs tracking-widest text-slate-400">Controls de Teclat</h3>
+                <ul class="space-y-1">
+                    <li><kbd class="bg-slate-700 px-1 rounded">←</kbd> <kbd class="bg-slate-700 px-1 rounded">→</kbd> Moure</li>
+                    <li><kbd class="bg-slate-700 px-1 rounded">↑</kbd> Rotar</li>
+                    <li><kbd class="bg-slate-700 px-1 rounded">↓</kbd> Caiguda suau</li>
+                    <li><kbd class="bg-slate-700 px-1 rounded">Espai</kbd> Caiguda forta</li>
+                    <li><kbd class="bg-slate-700 px-1 rounded">P</kbd> Pausar</li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- Zona de Joc Principal -->
+        <div class="flex flex-col items-center order-1 md:order-2">
+            
+            <div class="flex gap-4 items-end mb-4 w-full justify-between md:hidden">
+                <div class="bg-slate-800 p-2 rounded text-center w-24 border border-slate-700">
+                    <div class="text-xs text-slate-400 uppercase">Punts</div>
+                    <div id="score-mobile" class="font-mono text-green-400 font-bold">0</div>
+                </div>
+                <button id="start-btn-mobile" class="px-6 py-2 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-400 hover:to-emerald-500 text-white font-bold rounded-lg shadow-lg">
+                    JUGAR
+                </button>
+            </div>
+
+            <!-- Contenidor del Canvas amb Pantalles Superposades -->
+            <div class="game-container p-1 border-4 border-slate-700">
+                <canvas id="tetris" width="300" height="600"></canvas>
+                
+                <!-- Pantalla d'Inici / Pausa -->
+                <div id="overlay" class="absolute inset-0 bg-black/80 flex flex-col items-center justify-center rounded text-center z-10 backdrop-blur-sm">
+                    <h2 id="overlay-title" class="text-4xl font-bold mb-6 text-white drop-shadow-md">TETRIS</h2>
+                    <button id="start-btn" class="px-8 py-3 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white font-bold rounded-full shadow-[0_0_15px_rgba(59,130,246,0.5)] transition-all transform hover:scale-105 text-xl">
+                        INICIAR JOC
+                    </button>
+                </div>
+
+                <!-- Pantalla de Fi del Joc -->
+                <div id="game-over" class="hidden absolute inset-0 bg-black/90 flex flex-col items-center justify-center rounded text-center z-20 backdrop-blur-sm">
+                    <h2 class="text-4xl font-black text-red-500 mb-2 drop-shadow-[0_0_10px_rgba(239,68,68,0.8)]">FI DEL JOC</h2>
+                    <p class="text-xl text-slate-300 mb-6">Has aconseguit <span id="final-score" class="font-bold text-green-400">0</span> punts!</p>
+                    <button id="restart-btn" class="px-8 py-3 bg-gradient-to-r from-red-600 to-orange-500 hover:from-red-500 hover:to-orange-400 text-white font-bold rounded-full shadow-[0_0_15px_rgba(239,68,68,0.5)] transition-all transform hover:scale-105 text-lg">
+                        TORNAR A JUGAR
+                    </button>
+                </div>
+            </div>
+
+            <!-- Controls Tàctils (S'Amostren principalment en mòbils) -->
+            <div class="grid grid-cols-3 gap-2 mt-6 w-full max-w-[300px] md:hidden">
+                <button id="btn-left" class="btn-control col-span-1">
+                    <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
+                </button>
+                <button id="btn-rotate" class="btn-control col-span-1 bg-blue-600/30 border-blue-500/50">
+                    <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+                </button>
+                <button id="btn-right" class="btn-control col-span-1">
+                    <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M14 5l7 7m0 0l-7 7m7-7H3"></path></svg>
+                </button>
+                <button id="btn-down" class="btn-control col-span-1">
+                    <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 14l-7 7m0 0l-7-7m7 7V3"></path></svg>
+                </button>
+                <button id="btn-drop" class="btn-control col-span-2 bg-red-600/30 border-red-500/50 uppercase text-sm font-bold tracking-widest">
+                    Caiguda Forta
+                </button>
+            </div>
+        </div>
+
+        <!-- Panell Lateral Dret (Peça Següent) -->
+        <div class="flex flex-col gap-6 w-full md:w-48 order-3">
+            <div class="bg-slate-800 p-5 rounded-xl border border-slate-700 flex flex-col items-center">
+                <h3 class="font-bold text-slate-400 mb-4 uppercase text-sm tracking-widest text-center">Següent Peça</h3>
+                <div class="bg-slate-900 border-2 border-slate-700 rounded-lg p-2 w-32 h-32 flex items-center justify-center">
+                    <canvas id="next-piece" width="120" height="120"></canvas>
+                </div>
+            </div>
+            
+            <button id="pause-btn" class="hidden md:block w-full py-3 bg-slate-700 hover:bg-slate-600 text-white font-bold rounded-lg border border-slate-600 transition-colors uppercase tracking-wider text-sm">
+                Pausar (P)
+            </button>
+        </div>
+
+    </div>
+
+    <!-- Lògica del Joc -->
+    <script>
+        // Configuració del Canvas Principal
+        const canvas = document.getElementById('tetris');
+        const context = canvas.getContext('2d');
+        const nextCanvas = document.getElementById('next-piece');
+        const nextContext = nextCanvas.getContext('2d');
+
+        // Escala: 30 píxels per bloc. Graella de 10 col x 20 files
+        const BLOCK_SIZE = 30;
+        context.scale(BLOCK_SIZE, BLOCK_SIZE);
+        
+        // Escala del canvas de la següent peça
+        const NEXT_BLOCK_SIZE = 30;
+        nextContext.scale(NEXT_BLOCK_SIZE, NEXT_BLOCK_SIZE);
+
+        // Elements de la UI
+        const scoreElement = document.getElementById('score');
+        const scoreMobileElement = document.getElementById('score-mobile');
+        const linesElement = document.getElementById('lines');
+        const levelElement = document.getElementById('level');
+        const finalScoreElement = document.getElementById('final-score');
+        
+        const overlay = document.getElementById('overlay');
+        const overlayTitle = document.getElementById('overlay-title');
+        const gameOverScreen = document.getElementById('game-over');
+        
+        const startBtn = document.getElementById('start-btn');
+        const startBtnMobile = document.getElementById('start-btn-mobile');
+        const restartBtn = document.getElementById('restart-btn');
+        const pauseBtn = document.getElementById('pause-btn');
+
+        // Formes dels Tetrominos
+        const SHAPES = [
+            [], // Índex 0 és l'espai buit
+            [ // I
+                [0, 0, 0, 0],
+                [1, 1, 1, 1],
+                [0, 0, 0, 0],
+                [0, 0, 0, 0],
+            ],
+            [ // J
+                [2, 0, 0],
+                [2, 2, 2],
+                [0, 0, 0],
+            ],
+            [ // L
+                [0, 0, 3],
+                [3, 3, 3],
+                [0, 0, 0],
+            ],
+            [ // O
+                [4, 4],
+                [4, 4],
+            ],
+            [ // S
+                [0, 5, 5],
+                [5, 5, 0],
+                [0, 0, 0],
+            ],
+            [ // T
+                [0, 6, 0],
+                [6, 6, 6],
+                [0, 0, 0],
+            ],
+            [ // Z
+                [7, 7, 0],
+                [0, 7, 7],
+                [0, 0, 0],
+            ],
+        ];
+
+        // Colors per a cada número (forma)
+        const COLORS = [
+            null,
+            '#00e5ff', // 1: Cyan (I)
+            '#2979ff', // 2: Blau (J)
+            '#ff9100', // 3: Taronja (L)
+            '#ffea00', // 4: Groc (O)
+            '#00e676', // 5: Verd (S)
+            '#d500f9', // 6: Lila (T)
+            '#ff1744', // 7: Vermell (Z)
+        ];
+
+        // L'àrea de joc (tauler)
+        const arena = createMatrix(10, 20);
+        
+        // Estat del jugador i de la partida
+        const player = {
+            pos: {x: 0, y: 0},
+            matrix: null,
+            nextMatrix: null,
+            score: 0,
+            lines: 0,
+            level: 1
+        };
+
+        let dropCounter = 0;
+        let dropInterval = 1000;
+        let lastTime = 0;
+        let animationId = null;
+        let isPaused = false;
+        let isGameOver = false;
+
+        // Crea una matriu buida (tauler o peça)
+        function createMatrix(w, h) {
+            const matrix = [];
+            while (h--) {
+                matrix.push(new Array(w).fill(0));
+            }
+            return matrix;
+        }
+
+        // Genera una peça aleatòria
+        function createPiece() {
+            const index = Math.floor(Math.random() * 7) + 1;
+            return SHAPES[index];
+        }
+
+        // Dibuixa una matriu al context especificat
+        function drawMatrix(matrix, offset, ctx, isGhost = false) {
+            matrix.forEach((row, y) => {
+                row.forEach((value, x) => {
+                    if (value !== 0) {
+                        ctx.fillStyle = COLORS[value];
+                        
+                        // Efecte de la peça fantasma
+                        if (isGhost) {
+                            ctx.globalAlpha = 0.2;
+                        } else {
+                            ctx.globalAlpha = 1.0;
+                            
+                            // Dibuix de bisellat (efecte 3D) per a blocs normals
+                            ctx.fillRect(x + offset.x, y + offset.y, 1, 1);
+                            
+                            ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
+                            ctx.fillRect(x + offset.x, y + offset.y, 1, 0.1); // Dalt
+                            ctx.fillRect(x + offset.x, y + offset.y, 0.1, 1); // Esquerra
+                            
+                            ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+                            ctx.fillRect(x + offset.x, y + offset.y + 0.9, 1, 0.1); // Baix
+                            ctx.fillRect(x + offset.x + 0.9, y + offset.y, 0.1, 1); // Dreta
+                        }
+                        
+                        if (isGhost) {
+                           // Dibuixar només la vora per al fantasma
+                           ctx.fillRect(x + offset.x, y + offset.y, 1, 1);
+                        }
+                        ctx.globalAlpha = 1.0; // Restablir l'opacitat
+                    }
+                });
+            });
+        }
+
+        // Dibuixa tot el canvas principal
+        function draw() {
+            // Fons fosc
+            context.fillStyle = '#0a0a0a';
+            context.fillRect(0, 0, canvas.width, canvas.height);
+            
+            // Dibuixar quadrícula
+            context.strokeStyle = 'rgba(255, 255, 255, 0.05)';
+            context.lineWidth = 0.02;
+            for (let i = 0; i < 10; i++) {
+                context.beginPath();
+                context.moveTo(i, 0);
+                context.lineTo(i, 20);
+                context.stroke();
+            }
+            for (let i = 0; i < 20; i++) {
+                context.beginPath();
+                context.moveTo(0, i);
+                context.lineTo(10, i);
+                context.stroke();
+            }
+
+            drawMatrix(arena, {x: 0, y: 0}, context);
+            
+            // Dibuixar peça fantasma (mostra on caurà)
+            const ghostPos = {x: player.pos.x, y: player.pos.y};
+            while (!collide(arena, {matrix: player.matrix, pos: ghostPos})) {
+                ghostPos.y++;
+            }
+            ghostPos.y--;
+            drawMatrix(player.matrix, ghostPos, context, true);
+
+            // Dibuixar peça actual
+            drawMatrix(player.matrix, player.pos, context);
+        }
+
+        // Dibuixa la següent peça al mini-canvas
+        function drawNextPiece() {
+            nextContext.fillStyle = '#0f172a'; // Slate 900
+            nextContext.fillRect(0, 0, nextCanvas.width, nextCanvas.height);
+            
+            if (!player.nextMatrix) return;
+            
+            // Centrar la peça al mini-canvas
+            const offset = {
+                x: (4 - player.nextMatrix[0].length) / 2,
+                y: (4 - player.nextMatrix.length) / 2
+            };
+            
+            drawMatrix(player.nextMatrix, offset, nextContext);
+        }
+
+        // Fixa la peça al tauler
+        function merge(arena, player) {
+            player.matrix.forEach((row, y) => {
+                row.forEach((value, x) => {
+                    if (value !== 0) {
+                        arena[y + player.pos.y][x + player.pos.x] = value;
+                    }
+                });
+            });
+        }
+
+        // Comprova col·lisions (parets o peces fixades)
+        function collide(arena, player) {
+            const m = player.matrix;
+            const o = player.pos;
+            for (let y = 0; y < m.length; ++y) {
+                for (let x = 0; x < m[y].length; ++x) {
+                    if (m[y][x] !== 0 &&
+                        (arena[y + o.y] && arena[y + o.y][x + o.x]) !== 0) {
+                        return true;
+                    }
+                }
+            }
+            return false;
+        }
+
+        // Gira la matriu (rotació)
+        function rotate(matrix, dir) {
+            // Transposar
+            for (let y = 0; y < matrix.length; ++y) {
+                for (let x = 0; x < y; ++x) {
+                    [
+                        matrix[x][y],
+                        matrix[y][x],
+                    ] = [
+                        matrix[y][x],
+                        matrix[x][y],
+                    ];
+                }
+            }
+            // Invertir files o columnes segons la direcció
+            if (dir > 0) {
+                matrix.forEach(row => row.reverse());
+            } else {
+                matrix.reverse();
+            }
+        }
+
+        // Controla la rotació del jugador evitant col·lisions contra parets
+        function playerRotate(dir) {
+            const pos = player.pos.x;
+            let offset = 1;
+            rotate(player.matrix, dir);
+            
+            // "Wall kick": si rota i xoca, intentar moure'l al costat
+            while (collide(arena, player)) {
+                player.pos.x += offset;
+                offset = -(offset + (offset > 0 ? 1 : -1));
+                
+                if (offset > player.matrix[0].length) {
+                    // Si no hi cap, desfer la rotació
+                    rotate(player.matrix, -dir);
+                    player.pos.x = pos;
+                    return;
+                }
+            }
+        }
+
+        // Moviment horitzontal
+        function playerMove(offset) {
+            player.pos.x += offset;
+            if (collide(arena, player)) {
+                player.pos.x -= offset;
+            }
+        }
+
+        // Caiguda normal
+        function playerDrop() {
+            player.pos.y++;
+            if (collide(arena, player)) {
+                player.pos.y--;
+                merge(arena, player);
+                playerReset();
+                arenaSweep();
+                updateScore();
+            }
+            dropCounter = 0;
+        }
+
+        // Caiguda forta (Hard Drop)
+        function playerHardDrop() {
+            while (!collide(arena, player)) {
+                player.pos.y++;
+            }
+            player.pos.y--;
+            merge(arena, player);
+            playerReset();
+            arenaSweep();
+            updateScore();
+            dropCounter = 0;
+        }
+
+        // Genera la següent peça
+        function playerReset() {
+            if (player.nextMatrix === null) {
+                player.nextMatrix = createPiece();
+            }
+            
+            player.matrix = player.nextMatrix;
+            player.nextMatrix = createPiece();
+            drawNextPiece();
+            
+            player.pos.y = 0;
+            player.pos.x = Math.floor(arena[0].length / 2) - Math.floor(player.matrix[0].length / 2);
+            
+            // Fi del joc (Game Over) si la nova peça col·lisiona instantàniament
+            if (collide(arena, player)) {
+                gameOver();
+            }
+        }
+
+        // Elimina les línies completes
+        function arenaSweep() {
+            let rowCount = 1;
+            outer: for (let y = arena.length - 1; y >= 0; --y) {
+                for (let x = 0; x < arena[y].length; ++x) {
+                    if (arena[y][x] === 0) {
+                        continue outer;
+                    }
+                }
+                
+                // Si la línia està plena, extreu-la, omple-la de 0s i posa-la al principi
+                const row = arena.splice(y, 1)[0].fill(0);
+                arena.unshift(row);
+                ++y; // Tornar a comprovar la mateixa fila (que ara és la superior que ha baixat)
+
+                player.score += rowCount * 100 * player.level;
+                player.lines += 1;
+                rowCount *= 2; // Multiplicador per fer múltiples línies alhora
+            }
+            
+            // Pujar de nivell cada 10 línies
+            player.level = Math.floor(player.lines / 10) + 1;
+            // Augmentar la velocitat (mínim 100ms)
+            dropInterval = Math.max(100, 1000 - ((player.level - 1) * 100));
+        }
+
+        // Actualitza textos UI
+        function updateScore() {
+            scoreElement.innerText = player.score;
+            scoreMobileElement.innerText = player.score;
+            linesElement.innerText = player.lines;
+            levelElement.innerText = player.level;
+        }
+
+        // Bucle Principal
+        function update(time = 0) {
+            if (isPaused || isGameOver) return;
+            
+            const deltaTime = time - lastTime;
+            lastTime = time;
+            dropCounter += deltaTime;
+            
+            if (dropCounter > dropInterval) {
+                playerDrop();
+            }
+            
+            draw();
+            animationId = requestAnimationFrame(update);
+        }
+
+        // Iniciar el Joc
+        function startGame() {
+            // Netejar tauler
+            arena.forEach(row => row.fill(0));
+            player.score = 0;
+            player.lines = 0;
+            player.level = 1;
+            dropInterval = 1000;
+            
+            updateScore();
+            
+            isGameOver = false;
+            isPaused = false;
+            player.nextMatrix = null;
+            
+            overlay.classList.add('hidden');
+            gameOverScreen.classList.add('hidden');
+            
+            playerReset();
+            lastTime = performance.now();
+            update();
+        }
+
+        // Pausar
+        function togglePause() {
+            if (isGameOver || overlay.classList.contains('hidden') === false && !isPaused) return;
+            
+            isPaused = !isPaused;
+            if (isPaused) {
+                cancelAnimationFrame(animationId);
+                overlayTitle.innerText = "PAUSA";
+                startBtn.innerText = "REPRENDRE";
+                overlay.classList.remove('hidden');
+            } else {
+                overlay.classList.add('hidden');
+                lastTime = performance.now();
+                update();
+            }
+        }
+
+        // Fi del Joc
+        function gameOver() {
+            isGameOver = true;
+            cancelAnimationFrame(animationId);
+            finalScoreElement.innerText = player.score;
+            gameOverScreen.classList.remove('hidden');
+        }
+
+        // --- Controls (Teclat) ---
+        document.addEventListener('keydown', event => {
+            if (isGameOver) return;
+            
+            if (event.key === 'p' || event.key === 'P') {
+                togglePause();
+                return;
+            }
+
+            if (isPaused || overlay.classList.contains('hidden') === false) return;
+
+            switch(event.key) {
+                case 'ArrowLeft':
+                    playerMove(-1);
+                    break;
+                case 'ArrowRight':
+                    playerMove(1);
+                    break;
+                case 'ArrowDown':
+                    playerDrop();
+                    break;
+                case 'ArrowUp':
+                    playerRotate(1);
+                    break;
+                case ' ': // Espai
+                    event.preventDefault(); // Evitar fer scroll down
+                    playerHardDrop();
+                    break;
+            }
+            if(!isPaused) draw();
+        });
+
+        // --- Controls (Botons a Pantalla i Tàctils) ---
+        startBtn.addEventListener('click', () => {
+            if (isPaused) {
+                togglePause();
+            } else {
+                startGame();
+            }
+        });
+        
+        startBtnMobile.addEventListener('click', startGame);
+        restartBtn.addEventListener('click', startGame);
+        pauseBtn.addEventListener('click', togglePause);
+
+        // Prevenir el comportament per defecte al tacte doble en botons de control
+        const controlButtons = ['btn-left', 'btn-right', 'btn-down', 'btn-rotate', 'btn-drop'];
+        controlButtons.forEach(id => {
+            const btn = document.getElementById(id);
+            if(btn) {
+                btn.addEventListener('touchstart', (e) => e.preventDefault(), {passive: false});
+            }
+        });
+
+        // Funcionalitat Botons Mòbil
+        const bindButton = (id, action) => {
+            const btn = document.getElementById(id);
+            if (!btn) return;
+            
+            const trigger = (e) => {
+                if (e) e.preventDefault();
+                if (isPaused || isGameOver || !overlay.classList.contains('hidden')) return;
+                action();
+                draw();
+            };
+            
+            btn.addEventListener('click', trigger);
+            btn.addEventListener('touchstart', trigger, {passive: false});
+        };
+
+        bindButton('btn-left', () => playerMove(-1));
+        bindButton('btn-right', () => playerMove(1));
+        bindButton('btn-down', () => playerDrop());
+        bindButton('btn-rotate', () => playerRotate(1));
+        bindButton('btn-drop', () => playerHardDrop());
+
+        // Dibuix inicial
+        draw();
+    </script>
+</body>
+</html>
